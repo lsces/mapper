@@ -2,16 +2,15 @@
 //path to ...
 //... mapserv binary
 var exePfad="/cgi-bin/mapserv";
-//... machine name/ domain name
-var host = "lsces.co.uk";
-//... application path (url-path to [...]/client/)
-var applicationPath = "http://"+host+"/mapper/";
+//... application path (url-path to [...]/client/) - root-relative so this
+//survives switching bitweaver5 between domains (see switch-site)
+var applicationPath = "/mapper/";
 
 //legend setting - html legend or not?
 hasHTMLLegend = true;
 
 //...map file
-var mapPfad = "/srv/www/lsces/mapper/map/rlp.map";
+var mapPfad = "/srv/website/bitweaver5/mapper/map/test_rlp.map";
 //for Windows something like d:\\projekte\\mapfiles\\myMap.map - notice the double slahses
 //for Unix/Linux /home/user/mapfiles/myMap.map
 
@@ -24,59 +23,36 @@ var fullExtent = "213000 464300 250900 505524";
 //array of layer names for the thematic layers = names as they appear in your mapfile
 var layerList = new Array();
 layerList[0] = "IOM1880";
-//layerList[1] = "IOM1906";
-//layerList[2] = "IOM1940";
-//layerList[3] = "IOM1947";
-layerList[4] = "grid";
-//layerList[1] = "[layername]";
 
 //aliasnames for the thematic layer - these names will appear in the layertree
 //(order as in layerList)
 var layerAlias = new Array();
 layerAlias[0] = "Isle of Man 1880";
-//layerAlias[1] = "Isle of Man 1906";
-//layerAlias[2] = "Isle of Man 1940";
-//layerAlias[3] = "Isle of Man 1947";
-layerAlias[4] = "Grid Overlay";
-//layerAlias[1] = "[layeralias]";Isle of Man 
+
 //should the thematic layer be visible on the first map?
 //(order as in layerList)
 //0 = not visible , 1 = visible
 var layerVisible = new Array();
 layerVisible[0] = 1;
-//layerVisible[1] = 0;
-//layerVisible[2] = 0;
-//layerVisible[3] = 0;
-layerVisible[4] = 0;
-//layerVisible[1] = 1;
 
 //should a thematic layer be queryable
 //(order as in layerList)
 var layerIsQueryable = new Array();
 layerIsQueryable[0] = false;
-//layerIsQueryable[1] = true;
-//layerIsQueryable[2] = true;
-//layerIsQueryable[3] = true;
-layerIsQueryable[4] = false;
-//layerIsQueryable[1] = false;
 
 //should the thematic layer be linked to further information - opens in new windows
 //(order as in layerList)
 //0 = no, 1 = yes
 var layerLink = new Array();
 layerLink[0] = 0;
-//layerLink[1] = 0;
-//layerLink[2] = 0;
-//layerLink[3] = 0;
-layerLink[4] = 0;
 
 //url to the page that contains the information
 //(order as in layerList)
 var layerLinkURL = new Array();
 layerLinkURL[0] = "";
-//layerLinkURL[1] = "http://home.lsces.co.uk/bitweaverdev/mapper/images/IOM1906Notes.html";
-//layerLinkURL[2] = "http://home.lsces.co.uk/bitweaverdev/mapper/images/IOM1940Notes.html";
-//layerLinkURL[3] = "http://home.lsces.co.uk/bitweaverdev/mapper/images/IOM1947Notes.html";
+//layerLinkURL[1] = "https://lsces.uk/bitweaverdev/mapper/images/IOM1906Notes.html";
+//layerLinkURL[2] = "https://lsces.uk/bitweaverdev/mapper/images/IOM1940Notes.html";
+//layerLinkURL[3] = "https://lsces.uk/bitweaverdev/mapper/images/IOM1947Notes.html";
 
 //tooltips for the layer links
 //(order as in layerList)
@@ -145,8 +121,8 @@ weiterLink[7] = "";
 //URL
 //(order as in weiterLink)
 var weiterLinkURL = new Array();
-weiterLinkURL[0] = "http://lsces.co.uk";
-weiterLinkURL[1] = "http://mapserver.gis.umn.edu";
+weiterLinkURL[0] = "https://lsces.uk";
+weiterLinkURL[1] = "https://mapserver.gis.umn.edu";
 weiterLinkURL[2] = "";
 weiterLinkURL[3] = "";
 weiterLinkURL[4] = "";

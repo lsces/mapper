@@ -25,26 +25,13 @@ function stopPan(e){
 		
 		var mX = -(xPosition - psX);
 		var mY =   psY - yPosition;
-		
-		var px = (right-left) / layerwidth;
-		mapX = px * mX + left;
-		var py = (top-bottom) / layerheight;
-		mapY = py * (layerheight - mY) + bottom;
-		newLeft = mapX;
-		newTop = mapY;
-		
-		mX += layerwidth;
-		mY += layerheight;
-		var px = (right-left) / layerwidth;
-		mapX = px * mX + left;
-		var py = (top-bottom) / layerheight;
-		mapY = py * (layerheight - mY) + bottom;
-		newRight  = mapX;
-		newBottom = mapY;
-		xmin = newLeft;
-		ymax = newTop
-		xmax = newRight;
-		ymin = newBottom;
+
+		//convert the shifted pixel viewport into real map coordinates using the live extent
+		var newExtent = pixelBoxToMapExtent(mX, mY, mX+layerwidth, mY+layerheight);
+		xmin = newExtent.xmin;
+		ymax = newExtent.ymax;
+		xmax = newExtent.xmax;
+		ymin = newExtent.ymin;
 		refreshMap("box");
 		return true;
 	}
@@ -61,43 +48,6 @@ function pan(e){
 		}
 	}
 }
-
-function getMapExtent(URLString) {
-	url = new String(URLString);
-	startpos = 0;
-	endpos = 0;
-	s_minx = "";
-	s_miny = "";
-	s_maxx = "";
-	s_maxy = "";
-	firstappear = url.indexOf("imgext");
-	
-	if (firstappear != -1) {
-		startpos = firstappear + 7;
-		endpos = startpos + 7;
-		s_minx = url.substring(startpos, endpos);
-		
-		startpos = url.indexOf("+",endpos)+1;
-		endpos = startpos + 7;
-		s_miny = url.substring(startpos, endpos);
-		
-		startpos = url.indexOf("+",endpos)+1;
-		endpos = startpos + 7;
-		s_maxx = url.substring(startpos, endpos);
-		
-		startpos = url.indexOf("+",endpos)+1;
-		endpos = startpos + 7;
-		s_maxy = url.substring(startpos, endpos)
-	}
-	else {
-		ext = fullExtent.split(/\ /);
-		s_minx = eval(ext[0]);
-		s_miny = eval(ext[1]);
-		s_maxx = eval(ext[2]);
-		s_maxy = eval(ext[3]);
-	}
-}
-
 
 function jump(direction) {
 	

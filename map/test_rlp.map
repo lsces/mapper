@@ -7,9 +7,8 @@ STATUS ON
 SIZE 600 600
 EXTENT 213000 464300 250900 505524
 UNITS METERS
-SHAPEPATH "/srv/www/lsces/mapper/data"
+SHAPEPATH "/srv/website/bitweaver5/mapper/data"
 
-TRANSPARENT OFF
 IMAGECOLOR 255 255 255
 FONTSET "../symbols/font.list"
 SYMBOLSET "../symbols/symbol.list"
@@ -27,11 +26,8 @@ IMAGETYPE PNG
 #
 WEB
   TEMPLATE "../html/form.html"
-  MINSCALE 1000
-  MAXSCALE 1550000
-  IMAGEPATH "/srv/www/lsces/storage/maps/"
+  IMAGEPATH "/srv/website/bitweaver5/storage/maps/"
   IMAGEURL "/storage/maps/"
-  LOG "rlp.log"
   EMPTY "../theme/noFeature.html"
 END
 
@@ -46,7 +42,7 @@ END
 # Start of reference map
 #
 REFERENCE
-  IMAGE "../graphics/refmap_IOM1940.png"
+  IMAGE "../graphics/refmap_IOM1880.png"
   EXTENT 213000 464300 250900 505524
   SIZE 100 109
   STATUS ON
@@ -112,6 +108,8 @@ LAYER
    "init=epsg:27700"
   END
 
+  EXTENT 213000 464300 250900 505524
+
   # what type of data is this?
   TYPE RASTER
 
@@ -120,9 +118,7 @@ LAYER
 
   # actual data pointer
   DATA ../data/IOM1880bw.tif
-  
-  DUMP TRUE
-  
+
   METADATA
   	LEGTITLE 'IOM1880'
   END

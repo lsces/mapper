@@ -154,20 +154,6 @@ statuspostop = parseInt((MapFrameHeight-StatusHeight)/2);
 var wX = 0;
 var wY = 0;
 
-var left = 0;
-var right = MapWidth;
-var top = 0;
-var bottom = MapHeight;
-var fullLeft = 0;
-var fullRight = MapWidth;
-var fullTop = 0;
-var fullBottom = MapHeight;
-
-var newLeft = 0;
-var newBottom = 0;
-var newRight = 0;
-var newTop = 0;
-
 openNewWin = true;
 
 //Parameter for CGI forms
@@ -406,9 +392,31 @@ function getXYasMapCoordinates(x,y){
 	pixelSizeY = deltaY/layerheight;
 	mapX = parseFloat(currentExtent[0]) + parseFloat(x*pixelSizeX);
 	mapY = parseFloat(currentExtent[1]) + parseFloat((layerheight-y)*pixelSizeY);
-} 
+}
 
 function parseImgExt(extent){
 		tmpArray = extent.split(" ");
 		return tmpArray;
-} 
+}
+
+//convert a pixel-space box in MapFrame coordinates (x1,y1 = top-left,
+//x2,y2 = bottom-right) into the current live geographic extent, using the
+//same imgext-parsing approach as getXYasMapCoordinates(). Used by drag-zoom
+//(zoombox.js) and drag-pan (nav.js) - both used to derive this from a stale
+//left/right/top/bottom snapshot taken once at page load, which produced NaN
+//once the real (post-zoom) extent stopped matching that snapshot.
+function pixelBoxToMapExtent(x1, y1, x2, y2) {
+	var currentExtent = parseImgExt(imgext);
+	var mapMinX = parseFloat(currentExtent[0]);
+	var mapMinY = parseFloat(currentExtent[1]);
+	var mapMaxX = parseFloat(currentExtent[2]);
+	var mapMaxY = parseFloat(currentExtent[3]);
+	var pixelSizeX = (mapMaxX-mapMinX) / layerwidth;
+	var pixelSizeY = (mapMaxY-mapMinY) / layerheight;
+	return {
+		xmin: mapMinX + x1*pixelSizeX,
+		xmax: mapMinX + x2*pixelSizeX,
+		ymin: mapMinY + (layerheight-y2)*pixelSizeY,
+		ymax: mapMinY + (layerheight-y1)*pixelSizeY
+	};
+}

@@ -37,17 +37,13 @@ function stopBox(e) {
 			endY =  beginY;
 			beginY = tmp;
 		}
-		//minxy
-		var pixelX = (right-left) / layerwidth;
-		xmin = pixelX * beginX + left;
-		var pixelY = (top-bottom) / layerheight;
-		ymin = pixelY * (layerheight - beginY) + bottom; 
-		//maxxy
-		var pixelX = (right-left) / layerwidth;
-		xmax = pixelX * endX + left;
-		var pixelY = (top-bottom) / layerheight;
-		ymax = pixelY * (layerheight - endY) + bottom; 
-		
+		//convert the pixel box into real map coordinates using the live extent
+		var newExtent = pixelBoxToMapExtent(beginX, beginY, endX, endY);
+		xmin = newExtent.xmin;
+		ymin = newExtent.ymin;
+		xmax = newExtent.xmax;
+		ymax = newExtent.ymax;
+
 		if (xmax-xmin > 10 && ymax-ymin > 10 && zoomdir==1) {
 			refreshMap("box");
 		}

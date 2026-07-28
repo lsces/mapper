@@ -74,11 +74,9 @@ if (t.ShowScale == true) { //(Variable from param.js)
 	t.createElseLayer("Scale", t.scaleposleft, t.scalepostop, t.ScaleWidth, t.ScaleHeight, 102, true, ScaleLayer);
 }
 
-//Status-Layer
-	var StatusLayer = new String;
-	StatusLayer = '<img src="' + t.StatusURL + '" width="' + t.StatusWidth + '" height="' + t.StatusHeight + '" border="0" alt="' + t.statusName + '">';
-	t.createElseLayer("Status", t.statusposleft, t.statuspostop, t.StatusWidth, t.StatusHeight, 101, false, StatusLayer);
-	
+//Status-Layer - disabled: centered z-index 101 layer covers the map under the
+//new responsive frame size (was unobtrusive under the old fixed 600x600 frameset)
+
 	//Graphics-Layer: Layer for the Zommbox and the crosshair
 	document.writeln('<div id="myCanvas" style="position:absolute;height:'+t.MapHeight+'px;width:'+t.MapWidth+'px; top:'+t.postop+'px; left:'+t.posleft+'px; z-index:10000"></div>');
 	t.setEvents();
