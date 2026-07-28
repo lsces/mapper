@@ -4,16 +4,14 @@
 * @author lsces <lester@lsces.co.uk>
 * @version $Revision$
 */
+namespace Bitweaver\Mapper;
 
-/**
- * required setup
- */
-require_once( LIBERTY_PKG_PATH.'LibertyAttachable.php' );		// FisheyeGallery base class
+use Bitweaver\Liberty\LibertyMime;
 
 /**
 * @package mapper
 */
-class BitMapper extends LibertyAttachable
+class BitMapper extends LibertyMime
 {
 	var $mSettings;
 	

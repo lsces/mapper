@@ -11,10 +11,10 @@
 /**
  * required setup
  */
-require_once("../kernel/setup_inc.php");
+require_once("../kernel/includes/setup_inc.php");
 
 // now that we have all the offsets, we can get the content list
-include_once( MAPPER_PKG_PATH.'get_map_list_inc.php' );
+include_once( MAPPER_PKG_INCLUDE_PATH.'get_map_list_inc.php' );
  
 //$gBitSmarty->assign_by_ref('offset', $offset);
 $gBitSmarty->assign( 'contentSelect', $contentSelect );
