@@ -1,0 +1,9 @@
+# Bulk GIS reference data (OS MiniScale/os10k/os50k/meridian, historical IOM
+# rasters) lives on-disk under data/ and dataIOM/ but is deliberately not
+# published here - too large for git, and licensing on most of it isn't clear
+# enough to put in a public repo. A small curated subset (readme/license
+# text, spatial index shapefiles, the one already-public IOM1880 raster) is
+# already tracked and stays tracked - this only stops new bulk data being
+# added by accident (e.g. via `git add -A`).
+/data/*
+/dataIOM/
