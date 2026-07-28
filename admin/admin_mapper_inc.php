@@ -1,6 +1,6 @@
 <?php
 
-require_once( MAPPER_PKG_PATH.'BitMapper.php' );
+use Bitweaver\Mapper\BitMapper;
 
 //defaults
 $mapper = new BitMapper();

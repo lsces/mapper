@@ -14,12 +14,11 @@ use Bitweaver\Liberty\LibertyMime;
 class BitMapper extends LibertyMime
 {
 	var $mSettings;
-	
-	function BitMapper() 
-	{	
-		LibertyAttachable::LibertyAttachable();
+
+	function __construct()
+	{
+		parent::__construct();
 		$this->loadSettings();
-		
 	}
 
 	function loadSettings() {
