@@ -362,9 +362,7 @@ function trackM(e) {
 								  layerheight + postop - poY - y2);
 			return false;
 		}
-	} else 
-	  return true;
-	  return true;
+	} else
 	  return true;
 }
 
