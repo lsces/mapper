@@ -1,6 +1,8 @@
 <!-- MapServer Template -->
+<!DOCTYPE html>
 <html>
 <head>
+<meta charset="UTF-8">
 <title>Karte</title>
 <script type="text/javascript" language="javascript" src="../scripts/wz_jsgraphics.js"></script>
 <script language="javascript">
@@ -74,8 +76,14 @@ if (t.ShowScale == true) { //(Variable from param.js)
 	t.createElseLayer("Scale", t.scaleposleft, t.scalepostop, t.ScaleWidth, t.ScaleHeight, 102, true, ScaleLayer);
 }
 
-//Status-Layer - disabled: centered z-index 101 layer covers the map under the
-//new responsive frame size (was unobtrusive under the old fixed 600x600 frameset)
+//Status-Layer - zero-sized: refreshMap()/jump() call turnLayerVisible("Status")
+//on every interaction expecting this element to exist, so it can't just be
+//removed. Centered at StatusWidth/StatusHeight covered a big chunk of the
+//new responsive frame size (was unobtrusive under the old fixed 600x600
+//frameset) - zeroing the size keeps it present but invisible either way.
+	var StatusLayer = new String;
+	StatusLayer = '<img src="' + t.StatusURL + '" width="0" height="0" border="0" alt="' + t.statusName + '">';
+	t.createElseLayer("Status", t.statusposleft, t.statuspostop, 0, 0, 101, false, StatusLayer);
 
 	//Graphics-Layer: Layer for the Zommbox and the crosshair
 	document.writeln('<div id="myCanvas" style="position:absolute;height:'+t.MapHeight+'px;width:'+t.MapWidth+'px; top:'+t.postop+'px; left:'+t.posleft+'px; z-index:10000"></div>');

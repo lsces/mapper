@@ -399,24 +399,3 @@ function parseImgExt(extent){
 		return tmpArray;
 }
 
-//convert a pixel-space box in MapFrame coordinates (x1,y1 = top-left,
-//x2,y2 = bottom-right) into the current live geographic extent, using the
-//same imgext-parsing approach as getXYasMapCoordinates(). Used by drag-zoom
-//(zoombox.js) and drag-pan (nav.js) - both used to derive this from a stale
-//left/right/top/bottom snapshot taken once at page load, which produced NaN
-//once the real (post-zoom) extent stopped matching that snapshot.
-function pixelBoxToMapExtent(x1, y1, x2, y2) {
-	var currentExtent = parseImgExt(imgext);
-	var mapMinX = parseFloat(currentExtent[0]);
-	var mapMinY = parseFloat(currentExtent[1]);
-	var mapMaxX = parseFloat(currentExtent[2]);
-	var mapMaxY = parseFloat(currentExtent[3]);
-	var pixelSizeX = (mapMaxX-mapMinX) / layerwidth;
-	var pixelSizeY = (mapMaxY-mapMinY) / layerheight;
-	return {
-		xmin: mapMinX + x1*pixelSizeX,
-		xmax: mapMinX + x2*pixelSizeX,
-		ymin: mapMinY + (layerheight-y2)*pixelSizeY,
-		ymax: mapMinY + (layerheight-y1)*pixelSizeY
-	};
-}

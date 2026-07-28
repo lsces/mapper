@@ -37,12 +37,12 @@ function stopBox(e) {
 			endY =  beginY;
 			beginY = tmp;
 		}
-		//convert the pixel box into real map coordinates using the live extent
-		var newExtent = pixelBoxToMapExtent(beginX, beginY, endX, endY);
-		xmin = newExtent.xmin;
-		ymin = newExtent.ymin;
-		xmax = newExtent.xmax;
-		ymax = newExtent.ymax;
+		//imgbox/imgxy are pixel-space - mapserv converts to map coordinates
+		//itself server-side, using the imgext/mapsize also submitted with the form
+		xmin = beginX;
+		ymin = beginY;
+		xmax = endX;
+		ymax = endY;
 
 		if (xmax-xmin > 10 && ymax-ymin > 10 && zoomdir==1) {
 			refreshMap("box");

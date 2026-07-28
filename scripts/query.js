@@ -8,12 +8,6 @@ function identify(e) {
 function makeQueryURL() {
 	if (insideMap) {
 	var tempCheck = new Array;
-			var px = (right-left) / layerwidth;
-			mapX = px * xPosition + left;
-			var py = (top-bottom) / layerheight;
-			mapY = py * (layerheight - yPosition) + bottom;
-			queryX = mapX.toString();
-			queryY = mapY.toString();
 			URLString = new String;
 			URLString = exePfad + "?map="+mapPfad;
 			
@@ -75,7 +69,7 @@ function zoomToItem(x,y) {
 //itemquery
 function textItemQuery(textString, layer, field){
 	textString = textString.replace('/','.');
-	textString = textString.replace("Ä",'.');
+	textString = textString.replace("ï¿½",'.');
 	HTMLString ='<HTML><HEAD><TITLE></TITLE></HEAD>';
 	HTMLString += '<BODY bgcolor="#FFFFFF">';
 	HTMLString += '<FORM name="textquery" action="'+exePfad+'" method="post">';

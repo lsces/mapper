@@ -26,12 +26,12 @@ function stopPan(e){
 		var mX = -(xPosition - psX);
 		var mY =   psY - yPosition;
 
-		//convert the shifted pixel viewport into real map coordinates using the live extent
-		var newExtent = pixelBoxToMapExtent(mX, mY, mX+layerwidth, mY+layerheight);
-		xmin = newExtent.xmin;
-		ymax = newExtent.ymax;
-		xmax = newExtent.xmax;
-		ymin = newExtent.ymin;
+		//imgbox is pixel-space - mapserv converts to map coordinates itself
+		//server-side, using the imgext/mapsize also submitted with the form
+		xmin = mX;
+		ymax = mY;
+		xmax = mX + layerwidth;
+		ymin = mY + layerheight;
 		refreshMap("box");
 		return true;
 	}

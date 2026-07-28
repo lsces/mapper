@@ -41,35 +41,27 @@ function addRest(html) {
 
 
 function returnLayerbyName(name) {
-	  if (isIE) {
-	  	if ( eval('parent.MapFrame.document.all.' + name) != null) {
-			layer = eval('parent.MapFrame.document.all.' + name + '.style');
-			return(layer);
-		} else 
-			return(null);
-	  }
-	  else if (isNav6) {
-	  		layer = eval('parent.MapFrame.document.getElementById("'+name+'").style');
-			return(layer);
-	 } else
-	   return(null);
+	var el = parent.MapFrame.document.getElementById(name);
+	return el ? el.style : null;
 }
 
 
-function turnLayerVisible(name) {		
-  	var layer = returnLayerbyName(name);	
-  	layer.visibility = "visible";
+function turnLayerVisible(name) {
+  	var layer = returnLayerbyName(name);
+  	if (layer) layer.visibility = "visible";
 }
 
 
-function cLayer(name, left, top, right, bottom) {	
-	var layer = returnLayerbyName(name);		
-  	layer.clip = 'rect(' + top + ' ' +  right + ' ' + bottom + ' ' + left +')';
+function cLayer(name, left, top, right, bottom) {
+	var layer = returnLayerbyName(name);
+  	if (layer) layer.clip = 'rect(' + top + ' ' +  right + ' ' + bottom + ' ' + left +')';
 }
 
 
-function mLayerImage(lName, thisX, thisY) {		
-  	var layerToMove = returnLayerbyName(lName);		
-    layerToMove.left = thisX + "px";
-   	layerToMove.top  = thisY + "px";
+function mLayerImage(lName, thisX, thisY) {
+  	var layerToMove = returnLayerbyName(lName);
+	if (layerToMove) {
+		layerToMove.left = thisX + "px";
+		layerToMove.top  = thisY + "px";
+	}
 }
