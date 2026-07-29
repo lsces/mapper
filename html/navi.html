@@ -112,7 +112,7 @@ var t = parent.ScriptFrame;
 	for(i=0;i<t.layerList.length;i++){
 		document.writeln('<tr>');
 		document.writeln('<td>');
-		document.write('<input type="checkbox"  name="layer" value="' + t.layerList[i] + '"');
+		document.write('<input type="radio"  name="layer" value="' + t.layerList[i] + '"');
 		if(t.autoRefresh){
 			 document.write(' onClick="updateLayer()"');
 		}else{
@@ -136,7 +136,7 @@ var t = parent.ScriptFrame;
 	
 	document.writeln('<tr><td height="5"></td></tr>');	
 	if(t.hasCommonLayers){
-		document.writeln('<tr><td colspan="3" class="ueber1">Basisinformationen</td></tr>');
+		document.writeln('<tr><td colspan="3" class="heading-sm">Base Information</td></tr>');
 		document.writeln('<tr><td colspan="3" height="10"><img src="' + t.px_buntURL + '" width="168" height="1" border="0" alt=""></td></tr>');
 		
 		for(i=0;i<t.commonLayerList.length;i++) {

@@ -9,42 +9,15 @@ var applicationPath = "/mapper/";
 //legend setting - html legend or not?
 hasHTMLLegend = true;
 
-//...map file
-var mapPfad = "/srv/website/bitweaver5/mapper/map/test_rlp.map";
-//for Windows something like d:\\projekte\\mapfiles\\myMap.map - notice the double slahses
-//for Unix/Linux /home/user/mapfiles/myMap.map
-
+//...map file - mapPfad, layerList, layerAlias, layerVisible,
+//layerIsQueryable and layerLink are NOT declared here - they're resolved
+//server-side per site+mapset and emitted directly by html/script.php
+//(see mapper/includes/mapsets_inc.php), since this file is loaded before
+//that block runs and gets its variables overwritten there either way.
 
 //***********************extent information*************************
 //fullextent = extent in *.map
 var fullExtent = "213000 464300 250900 505524";
-
-//**************thematic layers********
-//array of layer names for the thematic layers = names as they appear in your mapfile
-var layerList = new Array();
-layerList[0] = "IOM1880";
-
-//aliasnames for the thematic layer - these names will appear in the layertree
-//(order as in layerList)
-var layerAlias = new Array();
-layerAlias[0] = "Isle of Man 1880";
-
-//should the thematic layer be visible on the first map?
-//(order as in layerList)
-//0 = not visible , 1 = visible
-var layerVisible = new Array();
-layerVisible[0] = 1;
-
-//should a thematic layer be queryable
-//(order as in layerList)
-var layerIsQueryable = new Array();
-layerIsQueryable[0] = false;
-
-//should the thematic layer be linked to further information - opens in new windows
-//(order as in layerList)
-//0 = no, 1 = yes
-var layerLink = new Array();
-layerLink[0] = 0;
 
 //url to the page that contains the information
 //(order as in layerList)
