@@ -35,7 +35,11 @@ $mapset = $mapsets['mapsets'][$requestedMapset];
 <meta charset="UTF-8">
 <meta http-equiv="cache-control" content="no-cache">
 <script language="javascript">
-document.write('<link rel="stylesheet" href="' + parent.styleURL + '" type="text/css">');
+var styleLink = document.createElement('link');
+styleLink.rel = 'stylesheet';
+styleLink.type = 'text/css';
+styleLink.href = parent.styleURL;
+document.head.appendChild(styleLink);
 
 var m = parent.MapFrame;
 
@@ -86,9 +90,11 @@ var layerLink = <?php echo json_encode( array_values( $mapset['layerLink'] ) ); 
 <script type="text/javascript" language="JavaScript" src="../scripts/query.js"></script>
 </head>
 
+<body leftmargin="0" topmargin="0" marginwidth="0" marginheight="0" background="">
 <script language="javascript">
-document.writeln('<body onload="Load2()" bgcolor="' + BereichColor1 + '" leftmargin="0" topmargin="0" marginwidth="0" marginheight="0" background="" onunload="closeWindows()">');
-
+document.body.setAttribute('bgcolor', BereichColor1);
+window.onload = Load2;
+window.onunload = closeWindows;
 </script>
 <TABLE width="100%">
 <TR>
