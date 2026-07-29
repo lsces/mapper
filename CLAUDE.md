@@ -14,6 +14,69 @@ page's `<head>` only ever reaches the *unused* copy. This bit an entire session 
 designs before landing on the current one) — see `[[project_mapper_osrm_revival]]` for the
 full history if this trips anyone up again.
 
+## `document.write()` / "unbalanced tree" — the real modernisation target
+**Corrected 2026-07-29** — an earlier session misread the "unbalanced tree cleanup" work-thread
+name as being about the `html/`+`theme/`+`modules/`+`templates/` directory split, and spent a
+pass auditing file reachability across all four instead (kept below as a legitimate but
+secondary side-finding). The actual term is the browser-parsing one: `document.write()`/
+`document.writeln()` calls that don't resolve to a tree matching what the browser's speculative
+preload-scanner predicted force it to discard that work and reparse — see MDN's
+[Speculative Parsing](https://developer.mozilla.org/en-US/docs/Glossary/speculative_parsing)
+glossary page. This is not a couple of stray calls — nearly every file in `html/` (all 9 real
+frameset pages plus all 7 `_blank.html` variants), `theme/noFeature.html`, and `html/script.php`
+opens its `<body>` and builds its content this way. It's the wholesale pattern this pre-PHP7
+codebase was written in, not an isolated fix.
+
+Two risk tiers once this gets scoped for real:
+- **Trivial:** the 7 `_blank.html` files each write a single hardcoded static string with no
+  dynamic value (e.g. `tool_blank.html:10` — `document.writeln('<body bgcolor="#FFFFFF">')`) —
+  can become plain static `<body>` markup, no JS involved, zero behaviour change.
+- **Real work:** `form.html`, `help.html`, `navi.html`, `tool.html`, `legend.html`, `link.html`,
+  `map.html`, `map_init.html`, `script.php`, `theme/noFeature.html` build genuinely dynamic
+  content this way (colors/attrs pulled from `t.*`/`o.*` JS globals set by `param1.js`/
+  `script.php`, loops over layer lists, table structure for the toolbar) — converting these
+  needs real restructuring to static HTML + post-parse DOM manipulation (or server-side
+  rendering where the values are already known at request time, the same move `script.php`
+  already made for the old static `script.html`). Not scoped yet — do this file by file, same
+  "one step at a time" discipline as everything else in this package, since it's a real
+  refactor risk against a now-working, live frameset.
+
+## Frame load-choreography chain (file-reachability side-finding, not the "unbalanced tree" fix)
+Every child iframe's *initial* `src` in the Smarty templates (`center_view_map.tpl`,
+`mod_overview.tpl`, `mod_tools.tpl`, `mod_navi.tpl`, `mod_links.tpl`, `mod_legend.tpl`) points
+at a `_blank.html` variant (`form_blank`, `legend_blank`, `link_blank`, `map_blank`,
+`navi_blank`, `script_blank`, `tool_blank`) — a neutral placeholder shown before the
+server-resolved mapset config exists to redirect to real content. Verified reachable by tracing
+every `document.location`/`src=` assignment:
+1. `map_blank.html`'s `Load1()` sets `ScriptFrame` → `parent.scriptURL` (i.e. `script.php`).
+2. `script.php` resolves the mapset, then redirects `FormFrame`→`map_init.html`,
+   `ToolFrame`→`tool.html`, `NaviFrame`→`navi.html`, `LinkFrame`→`link.html`.
+3. `map_init.html` auto-submits a form to the MapServer CGI. The CGI response body **is**
+   `html/form.html` — referenced as `WEB TEMPLATE` in `map/*.map`, not from any JS/tpl, so it
+   won't turn up in a plain grep for `form.html`.
+4. `form.html`'s `Load3()` (on its own `onload`) redirects `MapFrame`→map image and
+   `LegendFrame`→`legend.html`.
+
+None of the 7 are dead leftovers — don't remove any without replacing this whole choreography.
+Any future consolidation of `html/`+`theme/`+`modules/` into `templates/` needs to preserve this
+sequencing, not just move files 1:1.
+
+## theme/ and modules/ — also fully reachable (file-location side-finding)
+Audited both (2026-07-29), same reachability-tracing approach as the `_blank.html` pass above:
+- **`theme/` (5 files)** — every file is directly referenced by `map/*.map` via MapServer's own
+  `TEMPLATE`/`HEADER`/`FOOTER`/`EMPTY` directives: `land.html` (LAYER TEMPLATE, all 3 mapfiles),
+  `land_header.html`/`land_footer.html` (LAYER HEADER/FOOTER), `legend.html` (LEGEND TEMPLATE),
+  `noFeature.html` (WEB EMPTY). All reachable, all required — this is MapServer's CGI template
+  substitution mechanism, genuinely can't be ordinary Smarty `.tpl`.
+- **`modules/` (5 files)** — these actually follow the *standard* Bitweaver `{bitmodule}`
+  convention used by every other package for placeable sidebar/content blocks (`mod_overview`→
+  FormFrame, `mod_tools`→ToolFrame, `mod_navi`→NaviFrame, `mod_links`→LinkFrame, `mod_legend`→
+  LegendFrame), each gated by `$modMap` (set unconditionally `true` in `display_map.php`). So of
+  the four locations, only `html/`+`theme/` are genuinely non-standard (MapServer-constrained,
+  can't be ordinary Smarty) — `modules/` and `templates/`'s companion-php pair are both standard
+  framework conventions. Doesn't affect the real "unbalanced tree" (`document.write()`) work
+  above — this was a separate side-finding about directory layout, not about parsing.
+
 ## Selectable mapsets (script.php / mapsets_inc.php)
 `html/script.php` (PHP, replaces the old static `script.html`) resolves which map to load,
 server-side, before ScriptFrame's own `param1.js` runs:
