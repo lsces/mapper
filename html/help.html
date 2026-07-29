@@ -4,7 +4,7 @@
 <title>Help on the map tools</title>
 <meta charset="UTF-8">
 <script language="javascript">
-//Abkuerzungsvariablen
+//Shorthand variables
 var o = opener.parent.ScriptFrame;
 var ow = o.ToolWidth;
 var oh = o.ToolHeight;
@@ -12,7 +12,7 @@ var nw = o.NorthSouthWidth_MF;
 var nh = o.NorthSouthHeight_MF;
 var ew = o.EastWestWidth_MF;
 var eh = o.EastWestHeight_MF;
-//Ausrichtung in den Tabellenzellen
+//Alignment within the table cells
 var vertical = "top";
 var horizontal = "center";
 var styleLink = document.createElement('link');
@@ -30,14 +30,14 @@ document.body.setAttribute('leftmargin', '11');
 document.body.setAttribute('topmargin', '9');
 document.body.setAttribute('marginwidth', '11');
 document.body.setAttribute('marginheight', '9');
-document.body.setAttribute('link', o.BereichColor2);
-document.body.setAttribute('vlink', o.BereichColor2);
-document.body.setAttribute('alink', o.BereichColor2);
+document.body.setAttribute('link', o.SharedColor2);
+document.body.setAttribute('vlink', o.SharedColor2);
+document.body.setAttribute('alink', o.SharedColor2);
 var helpHtml = '<table cellspacing="0" cellpadding="2" border="0">';
 helpHtml += '<tr><td colspan="3" class="heading-sm">Help on the map tools</td></tr>';
-helpHtml += '<tr><td colspan="3" height="8"><img src="' + o.px_buntURL + '" width="356" height="1" border="0" alt=""></td></tr>';
+helpHtml += '<tr><td colspan="3" height="8"><img src="' + o.spacerPixelURL + '" width="356" height="1" border="0" alt=""></td></tr>';
 
-helpHtml += '<tr><td align="' + horizontal + '"><img src="' + o.steuerungURL + '" width="12" height="33" border="0" alt="' + o.toolName[0] + '"></td>';
+helpHtml += '<tr><td align="' + horizontal + '"><img src="' + o.controlIconURL + '" width="12" height="33" border="0" alt="' + o.toolName[0] + '"></td>';
 helpHtml += '<td><img src="' + o.pxURL + '" width="5" height="1" border="0" alt=""></td>';
 helpHtml += '<td>You can select the visibility of the individual topics by clicking the respective "check box". For each change of a check box the map is re-loaded.</td></tr>';
 

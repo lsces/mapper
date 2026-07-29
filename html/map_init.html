@@ -8,8 +8,8 @@
 <body>
 <script language="javascript">
 var t = parent.ScriptFrame;
-var initHtml = '<form name="init" method=GET action="' + t.exePfad + '">';
-initHtml += '<input type="hidden" name="map" value="' + t.mapPfad + '">';
+var initHtml = '<form name="init" method=GET action="' + t.exePath + '">';
+initHtml += '<input type="hidden" name="map" value="' + t.mapPath + '">';
 for (i=0;i<t.layerList.length;i++) {
 		if (t.layerVisible[i]==1) initHtml += '<input type="hidden" name="layer" value="' + t.layerList[i] + '">';
 }

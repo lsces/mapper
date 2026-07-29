@@ -3,17 +3,17 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Karte</title>
+<title>Map</title>
 <script type="text/javascript" language="javascript" src="../scripts/wz_jsgraphics.js"></script>
 <script language="javascript">
-//Abkuerzungsvariablen
+//Shorthand variables
 var t = parent.ScriptFrame;
 var n = parent.FormFrame;
-var ROS = t.RahmOutSize;
-var RIS = t.RahmInSize;
+var ROS = t.BorderOutSize;
+var RIS = t.BorderInSize;
 
 function reload(){
-	this.document.location.href = parent.ScriptFrame.htmlPfad + "start.html";
+	this.document.location.href = parent.ScriptFrame.htmlPath + "start.html";
 }	
 </script>
 </head>
@@ -38,17 +38,17 @@ if(t.MapFrameColor!=null){
 }
 
 //BackLayer1: outer Border
-t.createBackLayer1("mapBack1", t.rahmposleft, t.rahmpostop, t.BackWidth1, t.BackHeight1, 2, t.RahmOutColor, true);
+t.createBackLayer1("mapBack1", t.borderPosLeft, t.borderPosTop, t.BackWidth1, t.BackHeight1, 2, t.BorderOutColor, true);
 
 //BackLayer2 : Space between borders. Filled with Color or Image.
-if (t.RahmDistImage == true) { //(Variable from param.js)
-	t.createBackLayer2("mapBack2", (t.rahmposleft+ROS), (t.rahmpostop+ROS), t.BackWidth2, t.BackHeight2, 3, t.RahmImageURL, true);
+if (t.BorderGapImage == true) { //(Variable from param.js)
+	t.createBackLayer2("mapBack2", (t.borderPosLeft+ROS), (t.borderPosTop+ROS), t.BackWidth2, t.BackHeight2, 3, t.BorderGapImageURL, true);
 } else {
-	t.createBackLayer1("mapBack2", (t.rahmposleft+ROS), (t.rahmpostop+ROS), t.BackWidth2, t.BackHeight2, 3, t.RahmDistColor, true);
+	t.createBackLayer1("mapBack2", (t.borderPosLeft+ROS), (t.borderPosTop+ROS), t.BackWidth2, t.BackHeight2, 3, t.BorderGapColor, true);
 }
 
 //BackLayer3: inner Border
-t.createBackLayer1("mapBack3", (t.posleft-RIS), (t.postop-RIS), t.BackWidth3, t.BackHeight3, 4, t.RahmInColor, true);
+t.createBackLayer1("mapBack3", (t.posleft-RIS), (t.postop-RIS), t.BackWidth3, t.BackHeight3, 4, t.BorderInColor, true);
 
 //BackLayer4: Layer for the Backgroundcolor within MapLayer (becomes visible if the map is moved (Pan))
 t.createBackLayer1("mapBack4", t.posleft, t.postop, t.MapWidth, t.MapHeight, 5, t.MapBackColor, true);

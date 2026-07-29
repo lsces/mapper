@@ -1,7 +1,7 @@
 //Variables for holding the positions of the layers within the mapframe
-var RahmSize = "";
-var rahmposleft = "";
-var rahmpostop = "";
+var BorderSize = "";
+var borderPosLeft = "";
+var borderPosTop = "";
 var posleft = "";
 var postop = "";
 var MapWidth = "";
@@ -37,27 +37,27 @@ var y = "";
 
 var waitForResponse = false;
 
-//RahmSize = Thickness of the mapborder(BackLayer1-3)
+//BorderSize = Thickness of the mapborder(BackLayer1-3)
 if (JumpTool_MF == true) { //(Variable from param.js)
 	//if pan buttons visible within the mapframe
-	RahmSize = (RahmOutSize+JumpMFOutDist+NorthSouthHeight_MF+JumpMFInDist+RahmInSize);
+	BorderSize = (BorderOutSize+JumpMFOutDist+NorthSouthHeight_MF+JumpMFInDist+BorderInSize);
 } else {
 	//if pan buttons not visible within the mapframe
-	RahmSize = (RahmOutSize+RahmDist+RahmInSize);
+	BorderSize = (BorderOutSize+BorderGap+BorderInSize);
 }
 //distance of the mapborder (BackLayer1) from the outer edge of the MapFrame
-//rahmposleft = distance from left, rahmpostop = distance from the top
+//borderPosLeft = distance from left, borderPosTop = distance from the top
 if (isNav) {
-	rahmposleft = RahmLeft2;
-	rahmpostop = RahmTop2;
+	borderPosLeft = BorderLeft2;
+	borderPosTop = BorderTop2;
 } else {
-	rahmposleft = RahmLeft1;
-	rahmpostop = RahmTop1;
+	borderPosLeft = BorderLeft1;
+	borderPosTop = BorderTop1;
 }
 //distance of the map from the outer edge of the MapFrame
 //posleft = distance from left, postop = distance from the top
-posleft = (rahmposleft+RahmSize);
-postop = (rahmpostop+RahmSize);
+posleft = (borderPosLeft+BorderSize);
+postop = (borderPosTop+BorderSize);
 
 
 //mapsize (MapLayer)
@@ -65,16 +65,16 @@ MapWidth = (MapFrameWidth-(2*posleft));
 MapHeight = (MapFrameHeight-(2*postop));
 
 //size of BackLayer1 (outer mapborder)
-BackWidth1 = (MapFrameWidth-(2*rahmposleft));
-BackHeight1 = (MapFrameHeight-(2*rahmpostop));
+BackWidth1 = (MapFrameWidth-(2*borderPosLeft));
+BackHeight1 = (MapFrameHeight-(2*borderPosTop));
 
 //size of BackLayer2 (space between borders)
-BackWidth2 = (BackWidth1-(2*RahmOutSize));
-BackHeight2 = (BackHeight1-(2*RahmOutSize));
+BackWidth2 = (BackWidth1-(2*BorderOutSize));
+BackHeight2 = (BackHeight1-(2*BorderOutSize));
 
 //size of BackLayer3 (inner mapborder)
-BackWidth3 = (MapWidth+(2*RahmInSize));
-BackHeight3 = (MapHeight+(2*RahmInSize));
+BackWidth3 = (MapWidth+(2*BorderInSize));
+BackHeight3 = (MapHeight+(2*BorderInSize));
 
 //center of the map
 x = parseInt(MapWidth/2);
@@ -85,17 +85,17 @@ y = parseInt(MapHeight/2);
 if (JumpTool_MF == true) { //(Variable aus param.js)
 	//... "north"
 	northposleft = parseInt(posleft+(x-(NorthSouthWidth_MF/2)));
-	northpostop = (rahmpostop+RahmOutSize+JumpMFOutDist);
+	northpostop = (borderPosTop+BorderOutSize+JumpMFOutDist);
 	if(isIE) northpostop = northpostop-versatz;
 	//... "south"
 	southposleft = parseInt(posleft+(x-(NorthSouthWidth_MF/2)));
-	southpostop = (postop+MapHeight+RahmInSize+JumpMFInDist);
+	southpostop = (postop+MapHeight+BorderInSize+JumpMFInDist);
 	if(isIE) southpostop = southpostop-versatz;
 	//... "east"
-	eastposleft = (posleft+MapWidth+RahmInSize+JumpMFInDist);
+	eastposleft = (posleft+MapWidth+BorderInSize+JumpMFInDist);
 	eastpostop = parseInt(postop+(y-(EastWestHeight_MF/2)));
 	//... "west"
-	westposleft = (rahmposleft+RahmOutSize+JumpMFOutDist);
+	westposleft = (borderPosLeft+BorderOutSize+JumpMFOutDist);
 	westpostop = parseInt(postop+(y-(EastWestHeight_MF/2)));
 }
 
@@ -111,8 +111,8 @@ if (ShowScale == true) { //(Variable from param1.js)
 		zwischenheight = MapHeight;
 	} else {
 		//if the scalebar should be drawn within the mapborder
-		zwischenleft = rahmposleft+RahmOutSize;
-		zwischentop = rahmpostop+RahmOutSize;
+		zwischenleft = borderPosLeft+BorderOutSize;
+		zwischentop = borderPosTop+BorderOutSize;
 		zwischenwidth = BackWidth2;
 		zwischenheight = BackHeight2;
 	}	
@@ -145,7 +145,7 @@ if (ShowScale == true) { //(Variable from param1.js)
 	}
 }
 
-//distance of the StatusLayer ("Karte wird geladen") from the outer edge of the MapFrame
+//distance of the StatusLayer ("Map is loading") from the outer edge of the MapFrame
 //statusposleft = distance from the, statuspostop = distance from the top
 statusposleft = parseInt((MapFrameWidth-StatusWidth)/2);
 statuspostop = parseInt((MapFrameHeight-StatusHeight)/2);

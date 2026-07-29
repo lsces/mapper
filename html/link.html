@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Weiterführende Links</title>
+<title>Further Links</title>
 <script language="javascript">
 var t = parent.ScriptFrame;
 var styleLink = document.createElement('link');
@@ -15,9 +15,9 @@ document.head.appendChild(styleLink);
 
 <body>
 <script language="javascript">
-if(t.BereichColor1!=null){
+if(t.SharedColor1!=null){
 	document.body.setAttribute('scroll', 'auto');
-	document.body.setAttribute('bgcolor', t.BereichColor1);
+	document.body.setAttribute('bgcolor', t.SharedColor1);
 	document.body.setAttribute('leftmargin', '7');
 	document.body.setAttribute('topmargin', '5');
 	document.body.setAttribute('marginwidth', '7');
@@ -34,10 +34,10 @@ if(t.BereichColor1!=null){
 	window.onload = function(){ Load3(); };
 }
 var linkHtml = '<table width="100%" cellspacing="0" cellpadding="2" border="0">';
-for (i=0;i<t.weiterLink.length;i++) {
+for (i=0;i<t.furtherLink.length;i++) {
 	linkHtml += '<tr>';
-	if(t.weiterLinkURL!=null){
-		linkHtml += '<td class="link"><a href="' + t.weiterLinkURL[i] + '" target="_blank" title="' + t.weiterLinkName[i] + '">' + t.weiterLink[i] + '</a></td>';
+	if(t.furtherLinkURL!=null){
+		linkHtml += '<td class="link"><a href="' + t.furtherLinkURL[i] + '" target="_blank" title="' + t.furtherLinkName[i] + '">' + t.furtherLink[i] + '</a></td>';
 	}
 	linkHtml += '</tr>';
 }

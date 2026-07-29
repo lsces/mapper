@@ -2,11 +2,11 @@
 //parameters are well documented in mapserver documentation
 function writeCGIForm(){
 	formString = '<!DOCTYPE HTML PUBLIC "//W3C//DTD HTML 4.01 Transitional//EN">';
-	formString += '<HTML><HEAD><TITLE>Formular zur Wertevermittlung an MapServ-CGI</TITLE></HEAD>';
+	formString += '<HTML><HEAD><TITLE>Form for submitting values to the MapServ CGI</TITLE></HEAD>';
 	formString += '<BODY bgcolor="#FFFFFF">';
-	formString += '<FORM name="mapserv" method="GET" action="'+exePfad+'">';
-	formString += '<INPUT type="hidden" name="program" value="'+exePfad+'">';
-	formString += '<INPUT type="hidden" name="map" value="'+mapPfad+'">';
+	formString += '<FORM name="mapserv" method="GET" action="'+exePath+'">';
+	formString += '<INPUT type="hidden" name="program" value="'+exePath+'">';
+	formString += '<INPUT type="hidden" name="map" value="'+mapPath+'">';
 	formString += '<INPUT type="hidden" name="imgxy" value="'+imgxy+'">';
 	formString += '<INPUT type="hidden" name="mapext" value="'+mapext+'">';
 	formString += '<INPUT type="hidden" name="mode" value="'+mode+'">';

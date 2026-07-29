@@ -2,7 +2,7 @@
 {if $gBitSystem->isPackageActive( 'mapper' )}
 	{* map_blank.html's Load1() needs scriptURL; script.php reads
 	   parent.styleURL right at its own start, before its own param1.js
-	   has had a chance to load. Everything else (mapPfad, layerList,
+	   has had a chance to load. Everything else (mapPath, layerList,
 	   etc) is ScriptFrame's own separate copy, resolved by
 	   html/script.php itself - see mapper/includes/mapsets_inc.php *}
 	<script type="text/javascript">

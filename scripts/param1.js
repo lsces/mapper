@@ -1,7 +1,7 @@
 //***************path information*************** 
 //path to ...
 //... mapserv binary
-var exePfad="/cgi-bin/mapserv";
+var exePath="/cgi-bin/mapserv";
 //... application path (url-path to [...]/client/) - root-relative so this
 //survives switching bitweaver5 between domains (see switch-site)
 var applicationPath = "/mapper/";
@@ -9,7 +9,7 @@ var applicationPath = "/mapper/";
 //legend setting - html legend or not?
 hasHTMLLegend = true;
 
-//...map file - mapPfad, layerList, layerAlias, layerVisible,
+//...map file - mapPath, layerList, layerAlias, layerVisible,
 //layerIsQueryable and layerLink are NOT declared here - they're resolved
 //server-side per site+mapset and emitted directly by html/script.php
 //(see mapper/includes/mapsets_inc.php), since this file is loaded before
@@ -59,61 +59,61 @@ var commonLayerIsVisible = new Array();
 //Colors
 // ...Color1 = backgroundcolor,
 //...Color2 = font color ...
-var BereichColor1 = "#FFFFFF";
-var BereichColor2 = "#F4B900";
+var SharedColor1 = "#FFFFFF";
+var SharedColor2 = "#F4B900";
 
 //... various file pathes
-var themenPfad = applicationPath + "theme/"
-var htmlPfad = applicationPath + "html/";
-var startURL = htmlPfad + "start.html";
-var scriptURL = htmlPfad  + "script.html";
-var initURL = htmlPfad + "map_init.html";
-var naviURL = htmlPfad + "navi.html";
-var mapURL = htmlPfad + "map.html";
-var toolURL = htmlPfad + "tool.html";
-var legendURL = htmlPfad + "legend.html";
-var linkURL = htmlPfad  + "link.html";
-var helpURL = htmlPfad + "help.html";
-var impressURL = htmlPfad + "impress.html"
-var bildPfad1 = applicationPath + "graphics/";
-var bildPfad2 = applicationPath + "graphics/";
+var themePath = applicationPath + "theme/"
+var htmlPath = applicationPath + "html/";
+var startURL = htmlPath + "start.html";
+var scriptURL = htmlPath  + "script.html";
+var initURL = htmlPath + "map_init.html";
+var naviURL = htmlPath + "navi.html";
+var mapURL = htmlPath + "map.html";
+var toolURL = htmlPath + "tool.html";
+var legendURL = htmlPath + "legend.html";
+var linkURL = htmlPath  + "link.html";
+var helpURL = htmlPath + "help.html";
+var impressURL = htmlPath + "impress.html"
+var imagePath1 = applicationPath + "graphics/";
+var imagePath2 = applicationPath + "graphics/";
 var styleURL = applicationPath + "styles/client.css";
 
 //*************Properties for the links that appear in the LinkFrame**************
 //Title for the Links
-var weiterLink = new Array();
-weiterLink[0] = "LSCaine Electronic Services";
-weiterLink[1] = "Mapserver Homepage";
-weiterLink[2] = "";
-weiterLink[3] = "";
-weiterLink[4] = "";
-weiterLink[5] = "";
-weiterLink[6] = "";
-weiterLink[7] = "";
+var furtherLink = new Array();
+furtherLink[0] = "LSCaine Electronic Services";
+furtherLink[1] = "Mapserver Homepage";
+furtherLink[2] = "";
+furtherLink[3] = "";
+furtherLink[4] = "";
+furtherLink[5] = "";
+furtherLink[6] = "";
+furtherLink[7] = "";
 
 //URL
-//(order as in weiterLink)
-var weiterLinkURL = new Array();
-weiterLinkURL[0] = "https://lsces.uk";
-weiterLinkURL[1] = "https://mapserver.gis.umn.edu";
-weiterLinkURL[2] = "";
-weiterLinkURL[3] = "";
-weiterLinkURL[4] = "";
-weiterLinkURL[5] = "";
-weiterLinkURL[6] = "";
-weiterLinkURL[7] = "";
+//(order as in furtherLink)
+var furtherLinkURL = new Array();
+furtherLinkURL[0] = "https://lsces.uk";
+furtherLinkURL[1] = "https://mapserver.gis.umn.edu";
+furtherLinkURL[2] = "";
+furtherLinkURL[3] = "";
+furtherLinkURL[4] = "";
+furtherLinkURL[5] = "";
+furtherLinkURL[6] = "";
+furtherLinkURL[7] = "";
 
 //ToolTip for the Links
-//(order as in weiterLink)
-var weiterLinkName = new Array();
-weiterLinkName[0] = "LSCaine Electronic Services";
-weiterLinkName[1] = "MapServer Homepage";
-weiterLinkName[2] = "";
-weiterLinkName[3] = "";
-weiterLinkName[4] = "";
-weiterLinkName[5] = "";
-weiterLinkName[6] = "";
-weiterLinkName[7] = "";
+//(order as in furtherLink)
+var furtherLinkName = new Array();
+furtherLinkName[0] = "LSCaine Electronic Services";
+furtherLinkName[1] = "MapServer Homepage";
+furtherLinkName[2] = "";
+furtherLinkName[3] = "";
+furtherLinkName[4] = "";
+furtherLinkName[5] = "";
+furtherLinkName[6] = "";
+furtherLinkName[7] = "";
 
 //***********backgroundcolors for Frames and Windows********
 //... MapFrame
@@ -122,7 +122,7 @@ var MapFrameColor = "#FFFFFF";
 var FormFrameColor = "#FFFFFF";
 //... ToolFrame
 var ToolFrameColor = "#FFFFFF";
-//... LegendeFrame
+//... LegendFrame
 var LegendFrameColor = "#FFFFFF";
 //... Identify Results (opens in new window)
 var IdentifyWinColor = "#FFFFFF";
@@ -166,21 +166,21 @@ var initialTool = "ZoomInTool";
 //Path to the tool button images
 // *_u = high, _o = low
 // ... IdentifyTool
-var IdentifyURL_o = bildPfad1 + "info_high.gif";
-var IdentifyURL_u = bildPfad1 + "info_low.gif";
+var IdentifyURL_o = imagePath1 + "info_high.gif";
+var IdentifyURL_u = imagePath1 + "info_low.gif";
 // ... ZoomInTool
-var ZoomInURL_o = bildPfad1 + "zoomin_high.gif";
-var ZoomInURL_u = bildPfad1 + "zoomin_low.gif";
+var ZoomInURL_o = imagePath1 + "zoomin_high.gif";
+var ZoomInURL_u = imagePath1 + "zoomin_low.gif";
 //... ZoomOutTool
-var ZoomOutURL_o = bildPfad1 + "zoomout_high.gif";
-var ZoomOutURL_u = bildPfad1 + "zoomout_low.gif";
+var ZoomOutURL_o = imagePath1 + "zoomout_high.gif";
+var ZoomOutURL_u = imagePath1 + "zoomout_low.gif";
 //... FullExtentTool
-var FullExtentURL = bildPfad1 + "fextent.gif";
+var FullExtentURL = imagePath1 + "fextent.gif";
 //... PanTool
-var PanURL_o = bildPfad1 + "pan_high.gif";
-var PanURL_u = bildPfad1 + "pan_low.gif";
+var PanURL_o = imagePath1 + "pan_high.gif";
+var PanURL_u = imagePath1 + "pan_low.gif";
 //... HelpTool
-var HelpURL = bildPfad1 + "help.gif";
+var HelpURL = imagePath1 + "help.gif";
 
 //size of the toolbar buttons (pixel)
 var ToolWidth = 23;
@@ -188,7 +188,7 @@ var ToolHeight = 23;
 
 //Tooltips
 var toolName = new Array();
-toolName[0] = "Visible Topics"; //fuer das "Auge" in der Navigationsleiste
+toolName[0] = "Visible Topics"; //for the "eye" icon in the navigation bar
 toolName[1] = "Move North";
 toolName[2] = "Move South";
 toolName[3] = "Move East";
@@ -223,7 +223,7 @@ var StatusHeight = 31;
 //tooltip
 var statusName = "Map is loading";
 //image path
-var StatusURL = bildPfad1 + "loadMap.gif";
+var StatusURL = imagePath1 + "loadMap.gif";
 
 //************************ScaleBar properties**********************
 //should the scale be displayed?
@@ -247,34 +247,34 @@ var ScaleHeight = 17;
 //background color for the MapLayer (BackLayer4)
 var MapBackColor = MapFrameColor;
 //distance for the outer border from the edge of the MapFrame
-// RahmLeft = from the left, RahmTop = from the top
-//... for MSIE und Netscape 6+
-var RahmLeft1 = 1;
-var RahmTop1 = 1;
+// BorderLeft = from the left, BorderTop = from the top
+//... for MSIE and Netscape 6+
+var BorderLeft1 = 1;
+var BorderTop1 = 1;
 //... for Netscape <6
-var RahmLeft2 = 1;
-var RahmTop2 = 1;
+var BorderLeft2 = 1;
+var BorderTop2 = 1;
 
 //size of the outer border
-var RahmOutSize = 1;
+var BorderOutSize = 1;
 //color of the outer border (BackLayer1)
-var RahmOutColor = BereichColor2;
+var BorderOutColor = SharedColor2;
 //size of the inner border (BackLayer3)
-var RahmInSize = 1;
+var BorderInSize = 1;
 //color of the inner border(BackLayer3)
-var RahmInColor = BereichColor2;
+var BorderInColor = SharedColor2;
 //space between inner and outer border
-//(wird bei JumpToolMF = true durch die Summe von ButtonOutDist, ButtonInDist und
-//ButtonNorthSouthWidth (s. Parameter fuer die Verschiebe-Buttons im MapFrame) ersetzt)
-var RahmDist = 20;
+//(gets replaced, when JumpToolMF = true, by the sum of ButtonOutDist, ButtonInDist and
+//ButtonNorthSouthWidth (see parameters for the pan buttons in the MapFrame))
+var BorderGap = 20;
 //color for the space between the borders(BackLayer2)
-//(not visible if RahmDistImage = true)
-var RahmDistColor = "#FFFFFF";
+//(not visible if BorderGapImage = true)
+var BorderGapColor = "#FFFFFF";
 //SHould a Image be displayed in the border?
 //true = yes, false = no
-var RahmDistImage = false;
+var BorderGapImage = false;
 //path to the image
-var RahmImageURL = bildPfad1 + "bg.jpg";
+var BorderGapImageURL = imagePath1 + "bg.jpg";
 
 
 //*****************properties for the directional pan*****************
@@ -286,10 +286,10 @@ var JumpMFOutDist = 3;
 var JumpMFInDist = 3;
 
 //path to the images (pan arrows)
-var NorthURL_MF = bildPfad1 + "north_MF.gif";
-var SouthURL_MF = bildPfad1 + "south_MF.gif";
-var EastURL_MF = bildPfad1 + "east_MF.gif";
-var WestURL_MF = bildPfad1 + "west_MF.gif";
+var NorthURL_MF = imagePath1 + "north_MF.gif";
+var SouthURL_MF = imagePath1 + "south_MF.gif";
+var EastURL_MF = imagePath1 + "east_MF.gif";
+var WestURL_MF = imagePath1 + "west_MF.gif";
 
 //size of the images
 
@@ -311,17 +311,17 @@ var zoomsize = 2;
 
 
 //***********************images path (various)***************
-var px_buntURL = bildPfad2 + "px_bunt.gif";
-var pxURL = bildPfad1 + "px.gif";
-var sichtbarURL = bildPfad1 + "sichtbar.gif";
-var steuerungURL = bildPfad1 + "thsteuerung.gif";
-var queryURL = bildPfad1+ "aktiv.gif";
+var spacerPixelURL = imagePath2 + "px_bunt.gif";
+var pxURL = imagePath1 + "px.gif";
+var visibilityIconURL = imagePath1 + "sichtbar.gif";
+var controlIconURL = imagePath1 + "thsteuerung.gif";
+var queryURL = imagePath1+ "aktiv.gif";
 
 //***************************Sonstige Angaben***************************
-//Titel (Titelzeile) und Ueberschrift fuer den LinkFrame
+//Title (title bar) and heading for the LinkFrame
 var linkTitle = "Links";
 
-//Sonstige Bennenungen (z.B. fuer Fehlermeldungen)
+//Other labels (e.g. for error messages)
 var sonstName = new Array();
 sonstName[0] = "";
 

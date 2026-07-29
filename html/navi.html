@@ -93,8 +93,8 @@ function refreshVisibility() {
 
 var t = parent.ScriptFrame;
 	if (t.isNav){
-		if(t.BereichColor1!=null){
-			document.body.setAttribute('bgcolor', t.BereichColor1);
+		if(t.SharedColor1!=null){
+			document.body.setAttribute('bgcolor', t.SharedColor1);
 			document.body.setAttribute('marginwidth', '7');
 			document.body.setAttribute('marginheight', '0');
 			document.body.setAttribute('vlink', '#000000');
@@ -109,8 +109,8 @@ var t = parent.ScriptFrame;
 			window.onload = function(){ Load3(); };
 		}
 	} else {
-		if(t.BereichColor1!=null){
-			document.body.setAttribute('bgcolor', t.BereichColor1);
+		if(t.SharedColor1!=null){
+			document.body.setAttribute('bgcolor', t.SharedColor1);
 			document.body.setAttribute('leftmargin', '7');
 			document.body.setAttribute('topmargin', '5');
 			document.body.setAttribute('marginwidth', '7');
@@ -129,7 +129,7 @@ var t = parent.ScriptFrame;
 	}
 	var naviHtml = '<form name="navi">';
 	naviHtml += '<table width="100% border="0" cellspacing="0" cellpadding="0">';
-	naviHtml += '<tr><td><img src="' + t.sichtbarURL + '" width="14" height="14" border="0" hspace="4" alt="' + t.toolName[0] + '" onmouseover="window.status=\' ' + t.toolName[0] + '\'" onmouseout="window.status=\'\'"></td>';
+	naviHtml += '<tr><td><img src="' + t.visibilityIconURL + '" width="14" height="14" border="0" hspace="4" alt="' + t.toolName[0] + '" onmouseover="window.status=\' ' + t.toolName[0] + '\'" onmouseout="window.status=\'\'"></td>';
 	naviHtml += '<td colspan="2"></td></tr>';
 
 	for(i=0;i<t.layerList.length;i++){
@@ -160,7 +160,7 @@ var t = parent.ScriptFrame;
 	naviHtml += '<tr><td height="5"></td></tr>';
 	if(t.hasCommonLayers){
 		naviHtml += '<tr><td colspan="3" class="heading-sm">Base Information</td></tr>';
-		naviHtml += '<tr><td colspan="3" height="10"><img src="' + t.px_buntURL + '" width="168" height="1" border="0" alt=""></td></tr>';
+		naviHtml += '<tr><td colspan="3" height="10"><img src="' + t.spacerPixelURL + '" width="168" height="1" border="0" alt=""></td></tr>';
 
 		for(i=0;i<t.commonLayerList.length;i++) {
 			naviHtml += '<tr>';
@@ -183,7 +183,7 @@ naviHtml += '</table>';
 naviHtml += '</form>';
 if(t.autoRefresh==false){
     naviHtml += '<DIV align="center" style="margin-top:25px;">';
-	naviHtml += '<img src="'+t.bildPfad1+'/nk2.gif" onMouseDown="updateLayer()"';
+	naviHtml += '<img src="'+t.imagePath1+'/nk2.gif" onMouseDown="updateLayer()"';
 	naviHtml += '</DIV>';
 }
 document.body.insertAdjacentHTML('beforeend', naviHtml);

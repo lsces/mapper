@@ -98,11 +98,12 @@ Two risk tiers once this gets scoped for real:
     reproduce the "unbalanced tree...reparsed from network" warning, and isn't worth the
     regression risk of touching the package's hottest code path for a hazard it doesn't actually
     have.
-- **Known naming leftover, not actioned:** `BereichColor1`/`BereichColor2` (`scripts/param1.js`)
-  are German-leftover names ("Bereich" = area/region) — another Anglicisation candidate like
-  `theme/land_header.html`'s leftover "Rheinland-Pfalz" content, below. Don't rename without
-  checking all call sites (`param1.js`, `RahmOutColor`/`RahmInColor` derive from these too) —
-  not scoped, do it as its own pass.
+- **German original text changed to English — done 2026-07-29** (browser was offering to
+  translate the page). Covered both visible text (page titles, `theme/land_header.html`'s demo
+  heading) and internal identifiers/comments (`scripts/param1.js` and the files that reference
+  its variables). Left alone: the `.gif` asset filenames (still German — binary rename is a
+  different risk class, wasn't asked for) and `toolbar.js`'s `Impressum` branch (dead code, no
+  call site, `impress.html` doesn't exist).
 
 ## Frame load-choreography chain (file-reachability side-finding, not the "unbalanced tree" fix)
 Every child iframe's *initial* `src` in the Smarty templates (`center_view_map.tpl`,

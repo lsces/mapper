@@ -14,15 +14,15 @@ function WindowLink(i) {
 }
 
 //open window
-function WindowFirst(Fenster){
-	switch (Fenster){
+function WindowFirst(windowName){
+	switch (windowName){
 		case "Impressum":
 			ImpressWindow = open(impressURL,"Impressum","width=" + ImpressWidth + ",height=" + ImpressHeight + ",scrollbars=yes,resizable=yes");
 			toogleimpress = false;
 			setTimeout("ImpressWindow.focus()",100);
 			break;
-		case "Hilfe":
-			HelpWindow = open(helpURL,"Hilfe","width=" + HelpWidth + ",height=" + HelpHeight + ",scrollbars=yes,resizable=yes");
+		case "Help":
+			HelpWindow = open(helpURL,"Help","width=" + HelpWidth + ",height=" + HelpHeight + ",scrollbars=yes,resizable=yes");
 			tooglehelp = false;
 			setTimeout("HelpWindow.focus()",100);
 			break;
@@ -30,8 +30,8 @@ function WindowFirst(Fenster){
 }
 
 //check if window is already open. bring it to front or open it again
-function WindowSecond(Fenster){
-	switch (Fenster) {
+function WindowSecond(windowName){
+	switch (windowName) {
 		case "Impressum":
 			if (ImpressWindow.closed == true){
 				ImpressWindow = open(impressURL,"Impressum","width=" + ImpressWidth + ",height=" + ImpressHeight + ",scrollbars=yes,resizable=yes");
@@ -40,9 +40,9 @@ function WindowSecond(Fenster){
 				setTimeout("ImpressWindow.focus()",100);
 			}
 			break;
-		case "Hilfe":
+		case "Help":
 			if (HelpWindow.closed == true){
-				HelpWindow = open(helpURL,"Hilfe","width=" + HelpWidth + ",height=" + HelpHeight + ",scrollbars=yes,resizable=yes");
+				HelpWindow = open(helpURL,"Help","width=" + HelpWidth + ",height=" + HelpHeight + ",scrollbars=yes,resizable=yes");
 				setTimeout("HelpWindow.focus()",100);
 			} else {
 				setTimeout("HelpWindow.focus()",100);
@@ -144,9 +144,9 @@ function setTool(selectedTool) {
 		
 		case "help":
 			if (tooglehelp == true){
-				WindowFirst('Hilfe');
+				WindowFirst('Help');
 			} else {
-				WindowSecond('Hilfe');	
+				WindowSecond('Help');	
 			}
 			break;
 		

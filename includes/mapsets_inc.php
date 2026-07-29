@@ -8,7 +8,7 @@
  * proper "list of maps" catalog feature (see list_maps.php, currently
  * dead scaffolding bypassed entirely by display_map.php hardcoding a
  * single map). Not built yet - deliberately deferred, this plain PHP
- * array just needs to unblock selectable mapPfad today.
+ * array just needs to unblock selectable mapPath today.
  *
  * Package default only has the public demo mapset - sites with their own
  * private mapsets (private data, not published to github) extend this via

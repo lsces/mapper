@@ -9,7 +9,7 @@ function makeQueryURL() {
 	if (insideMap) {
 	var tempCheck = new Array;
 			URLString = new String;
-			URLString = exePfad + "?map="+mapPfad;
+			URLString = exePath + "?map="+mapPath;
 			
 			URLString += "&imgext="
 			ext = imgext;
@@ -72,8 +72,8 @@ function textItemQuery(textString, layer, field){
 	textString = textString.replace("�",'.');
 	HTMLString ='<HTML><HEAD><TITLE></TITLE></HEAD>';
 	HTMLString += '<BODY bgcolor="#FFFFFF">';
-	HTMLString += '<FORM name="textquery" action="'+exePfad+'" method="post">';
-	HTMLString += '<INPUT type="hidden" name="map" value="'+mapPfad+'">';
+	HTMLString += '<FORM name="textquery" action="'+exePath+'" method="post">';
+	HTMLString += '<INPUT type="hidden" name="map" value="'+mapPath+'">';
 	HTMLString += '<INPUT type="hidden" name="mode" value="itemnquery">';
 	HTMLString += '<INPUT type="hidden" name="qLayer" value="'+layer+'">';
 	HTMLString += '<INPUT type="hidden" name="qItem" value="'+field+'">';

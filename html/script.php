@@ -74,7 +74,7 @@ function closeWindows() {
 <script type="text/javascript" language="JavaScript" src="../scripts/param1.js"></script>
 <script language="javascript">
 //active mapset, resolved server-side - see includes/mapsets_inc.php
-var mapPfad = <?php echo json_encode( MAPPER_PKG_PATH.'map/'.$mapset['file'] ); ?>;
+var mapPath = <?php echo json_encode( MAPPER_PKG_PATH.'map/'.$mapset['file'] ); ?>;
 var layerList = <?php echo json_encode( array_values( $mapset['layerList'] ) ); ?>;
 var layerAlias = <?php echo json_encode( array_values( $mapset['layerAlias'] ) ); ?>;
 var layerVisible = <?php echo json_encode( array_values( $mapset['layerVisible'] ) ); ?>;
@@ -92,7 +92,7 @@ var layerLink = <?php echo json_encode( array_values( $mapset['layerLink'] ) ); 
 
 <body leftmargin="0" topmargin="0" marginwidth="0" marginheight="0" background="">
 <script language="javascript">
-document.body.setAttribute('bgcolor', BereichColor1);
+document.body.setAttribute('bgcolor', SharedColor1);
 window.onload = Load2;
 window.onunload = closeWindows;
 </script>
