@@ -6,28 +6,34 @@
   <script language="javascript">
 //Abkuerzungsvariable
 var o = opener.parent.ScriptFrame;
-document.writeln('<title>' + o.identifyTitle + '</title>');
-document.writeln('<link rel="stylesheet" href="' + o.styleURL + '" type="text/css">');
-  </script>
-  <script language="javascript">
-document.writeln('<body bgcolor="' + o.IdentifyWinColor + '" leftmargin="13" topmargin="11" marginwidth="13" marginheight="11">');
+document.title = o.identifyTitle;
+var styleLink = document.createElement('link');
+styleLink.rel = 'stylesheet';
+styleLink.type = 'text/css';
+styleLink.href = o.styleURL;
+document.head.appendChild(styleLink);
   </script>
 </head>
 <body leftmargin="13" topmargin="11" marginheight="11" marginwidth="13">
+<script language="javascript">
+document.body.setAttribute('bgcolor', o.IdentifyWinColor);
+</script>
 <div class="heading-sm">No element has been found to display information
 for.
 </div>
 <div>In the layers:</div>
 <script language="javascript">
 o = opener.parent.ScriptFrame;
+var layerHtml = '';
 for(i=0; i<o.layerList.length;i++){
 	if(o.layerIsQueryable[i]){
-		document.writeln('<DIV><B>');
-		document.writeln(o.layerAlias[i]+'<BR>');
-		document.writeln('</B></DIV>');
-		document.writeln('<DIV>There is no symbol <img src="'+o.queryURL+'"> at this location in the layer');
+		layerHtml += '<DIV><B>';
+		layerHtml += o.layerAlias[i]+'<BR>';
+		layerHtml += '</B></DIV>';
+		layerHtml += '<DIV>There is no symbol <img src="'+o.queryURL+'"> at this location in the layer';
 	}
 }
+document.body.insertAdjacentHTML('beforeend', layerHtml);
 </script>
 </body>
 </html>

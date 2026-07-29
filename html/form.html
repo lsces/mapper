@@ -8,7 +8,11 @@
 <script language="javascript">
 //Abkuerzungsvariable
 var t = parent.ScriptFrame;
-document.writeln('<link rel="stylesheet" href="' + t.styleURL + '" type="text/css">');
+var styleLink = document.createElement('link');
+styleLink.rel = 'stylesheet';
+styleLink.type = 'text/css';
+styleLink.href = t.styleURL;
+document.head.appendChild(styleLink);
 
 //Variables that holds the information coming back with the mapserver response
 //Scalebarimage
@@ -34,14 +38,12 @@ function Load3() {
 </script>
 </head>
 
+<body leftmargin="1" topmargin="5" marginwidth="1" marginheight="5">
 <script language="javascript">
-if(t.FormFrameColor!=null){
-	document.writeln('<body bgcolor="' + t.FormFrameColor + '" onload="Load3()" leftmargin="1" topmargin="5" marginwidth="1" marginheight="5">');
-}else{
-	document.writeln('<body bgcolor="#FFFFFF" onload="Load3()" leftmargin="1" topmargin="5" marginwidth="1" marginheight="5">');
-}
-document.writeln('<table width="100%" border="0" cellspacing="0" cellpadding="1">');
+document.body.setAttribute('bgcolor', t.FormFrameColor != null ? t.FormFrameColor : '#FFFFFF');
+window.onload = Load3;
 </script>
+<table width="100%" border="0" cellspacing="0" cellpadding="1">
 <tr>
 <td align="center">
 

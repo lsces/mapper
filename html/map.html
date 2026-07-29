@@ -18,11 +18,23 @@ function reload(){
 </script>
 </head>
 
+<body>
 <script language="javascript">
 if(t.MapFrameColor!=null){
-	document.writeln('<body bgcolor="' + t.MapFrameColor + '" leftmargin="0" topmargin="0" marginwidth="0" marginheight="0" onresize="reload()">');
+	document.body.setAttribute('bgcolor', t.MapFrameColor);
+	document.body.setAttribute('leftmargin', '0');
+	document.body.setAttribute('topmargin', '0');
+	document.body.setAttribute('marginwidth', '0');
+	document.body.setAttribute('marginheight', '0');
+	window.onresize = reload;
 }else{
-	document.writeln('<body bgcolor="#FFFFFF" onload="Load3()" leftmargin="1" topmargin="5" marginwidth="1" marginheight="5" onresize="reload()">');
+	document.body.setAttribute('bgcolor', '#FFFFFF');
+	document.body.setAttribute('leftmargin', '1');
+	document.body.setAttribute('topmargin', '5');
+	document.body.setAttribute('marginwidth', '1');
+	document.body.setAttribute('marginheight', '5');
+	window.onload = function(){ Load3(); };
+	window.onresize = reload;
 }
 
 //BackLayer1: outer Border
@@ -86,12 +98,12 @@ if (t.ShowScale == true) { //(Variable from param.js)
 	t.createElseLayer("Status", t.statusposleft, t.statuspostop, 0, 0, 101, false, StatusLayer);
 
 	//Graphics-Layer: Layer for the Zommbox and the crosshair
-	document.writeln('<div id="myCanvas" style="position:absolute;height:'+t.MapHeight+'px;width:'+t.MapWidth+'px; top:'+t.postop+'px; left:'+t.posleft+'px; z-index:10000"></div>');
+	document.body.insertAdjacentHTML('beforeend', '<div id="myCanvas" style="position:absolute;height:'+t.MapHeight+'px;width:'+t.MapWidth+'px; top:'+t.postop+'px; left:'+t.posleft+'px; z-index:10000"></div>');
 	t.setEvents();
 	jg = new jsGraphics("myCanvas");
 	jg.setColor("#ff0000");
-	
-	document.writeln('<div id="crossCanvas" style="position:absolute;height:'+t.MapHeight+'px;width:'+t.MapWidth+'px; top:'+t.postop+'px; left:'+t.posleft+'px; z-index:9999"></div>');
+
+	document.body.insertAdjacentHTML('beforeend', '<div id="crossCanvas" style="position:absolute;height:'+t.MapHeight+'px;width:'+t.MapWidth+'px; top:'+t.postop+'px; left:'+t.posleft+'px; z-index:9999"></div>');
 	crossH = new jsGraphics("crossCanvas");
 	crossH.setColor("#B2ADAD");
 	crossV = new jsGraphics("crossCanvas");

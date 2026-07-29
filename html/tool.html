@@ -5,47 +5,62 @@
 <title>Toolbar</title>
 <meta charset="UTF-8">
 <script language="javascript">
-var t = parent.ScriptFrame; 
+var t = parent.ScriptFrame;
 var tw = t.ToolWidth;
 var th = t.ToolHeight;
 //alignment of the toolbar buttons
 var horizontal = "left";
-document.writeln('<link rel="stylesheet" href="' + t.styleURL + '" type="text/css">');
+var styleLink = document.createElement('link');
+styleLink.rel = 'stylesheet';
+styleLink.type = 'text/css';
+styleLink.href = t.styleURL;
+document.head.appendChild(styleLink);
 </script>
 </head>
 
+<body>
 <script language="javascript">
 if(t.ToolFrameColor !=null){
-	document.writeln('<body bgcolor="' + t.ToolFrameColor +'" leftmargin="1" topmargin="0" marginwidth="1" marginheight="0">');
+	document.body.setAttribute('bgcolor', t.ToolFrameColor);
+	document.body.setAttribute('leftmargin', '1');
+	document.body.setAttribute('topmargin', '0');
+	document.body.setAttribute('marginwidth', '1');
+	document.body.setAttribute('marginheight', '0');
 }else{
-	document.writeln('<body bgcolor="#FFFFFF" onload="Load3()" leftmargin="1" topmargin="5" marginwidth="1" marginheight="5">');
+	document.body.setAttribute('bgcolor', '#FFFFFF');
+	document.body.setAttribute('leftmargin', '1');
+	document.body.setAttribute('topmargin', '5');
+	document.body.setAttribute('marginwidth', '1');
+	document.body.setAttribute('marginheight', '5');
+	window.onload = function(){ Load3(); };
 }
-document.writeln('<div align="center">');
-document.writeln('<table width="77" cellspacing="0" cellpadding="1" border="0">');
-document.writeln('<tr><td colspan="6" height="3"></td></tr>');
-document.writeln('<tr>');
+var toolbarHtml = '<div align="center">';
+toolbarHtml += '<table width="77" cellspacing="0" cellpadding="1" border="0">';
+toolbarHtml += '<tr><td colspan="6" height="3"></td></tr>';
+toolbarHtml += '<tr>';
 if (t.ZoomInTool) {
-document.writeln('<td align="' + horizontal + '"><img name="zoomin" src="' + t.ZoomInURL + '" width="' + tw + '" height="' + th + '" alt="' + t.toolName[5] + '" onmouseover="window.status=\' ' + t.toolName[5] + '\'" onmouseout="window.status=\'\'" onmousedown="t.setTool(\'zoomin\');t.turnSelected(\'zoomin\')"></td>');
+toolbarHtml += '<td align="' + horizontal + '"><img name="zoomin" src="' + t.ZoomInURL + '" width="' + tw + '" height="' + th + '" alt="' + t.toolName[5] + '" onmouseover="window.status=\' ' + t.toolName[5] + '\'" onmouseout="window.status=\'\'" onmousedown="t.setTool(\'zoomin\');t.turnSelected(\'zoomin\')"></td>';
 }
 if (t.ZoomOutTool) {
-document.writeln('<td align="' + horizontal + '"><img name="zoomout" src="' + t.ZoomOutURL + '" width="' + tw + '" height="' + th + '" alt="' + t.toolName[6] + '" onmouseover="window.status=\' ' + t.toolName[6] + '\'" onmouseout="window.status=\'\'" onmousedown="t.setTool(\'zoomout\');t.turnSelected(\'zoomout\')"></td>');
+toolbarHtml += '<td align="' + horizontal + '"><img name="zoomout" src="' + t.ZoomOutURL + '" width="' + tw + '" height="' + th + '" alt="' + t.toolName[6] + '" onmouseover="window.status=\' ' + t.toolName[6] + '\'" onmouseout="window.status=\'\'" onmousedown="t.setTool(\'zoomout\');t.turnSelected(\'zoomout\')"></td>';
 }
 if (t.FullExtentTool) {
-document.writeln('<td align="' + horizontal + '"><img name="fextent" src="' + t.FullExtentURL + '" width="' + tw + '" height="' + th + '" alt="' + t.toolName[7] + '" onmouseover="window.status=\' ' + t.toolName[7] + '\'" onmouseout="window.status=\'\'" onmousedown="t.setTool(\'fullextent\')"></td>');
+toolbarHtml += '<td align="' + horizontal + '"><img name="fextent" src="' + t.FullExtentURL + '" width="' + tw + '" height="' + th + '" alt="' + t.toolName[7] + '" onmouseover="window.status=\' ' + t.toolName[7] + '\'" onmouseout="window.status=\'\'" onmousedown="t.setTool(\'fullextent\')"></td>';
 }
 if (t.PanTool) {
-document.writeln('<td align="' + horizontal + '"><img name="pan" src="' + t.PanURL + '" width="' + tw + '" height="' + th + '" alt="' + t.toolName[8] + '" onmouseover="window.status=\' ' + t.toolName[8] + '\'" onmouseout="window.status=\'\'" onmousedown="t.setTool(\'pan\');t.turnSelected(\'pan\')"></td>');
+toolbarHtml += '<td align="' + horizontal + '"><img name="pan" src="' + t.PanURL + '" width="' + tw + '" height="' + th + '" alt="' + t.toolName[8] + '" onmouseover="window.status=\' ' + t.toolName[8] + '\'" onmouseout="window.status=\'\'" onmousedown="t.setTool(\'pan\');t.turnSelected(\'pan\')"></td>';
 }
 if (t.IdentifyTool) {
-document.writeln('<td align="' + horizontal + '"><img name="identify" src="' + t.IdentifyURL + '" width="' + tw + '" height="' + th + '" alt="' + t.toolName[9] + '" onmouseover="window.status=\' ' + t.toolName[9] + '\'" onmouseout="window.status=\'\'" onmousedown="t.setTool(\'identify\');t.turnSelected(\'identify\')"></td>');
+toolbarHtml += '<td align="' + horizontal + '"><img name="identify" src="' + t.IdentifyURL + '" width="' + tw + '" height="' + th + '" alt="' + t.toolName[9] + '" onmouseover="window.status=\' ' + t.toolName[9] + '\'" onmouseout="window.status=\'\'" onmousedown="t.setTool(\'identify\');t.turnSelected(\'identify\')"></td>';
 }
 if (t.HelpTool) {
-document.writeln('<td align="' + horizontal + '"><img name="help" src="' + t.HelpURL + '" width="' + tw + '" height="' + th + '" alt="' + t.toolName[10] + '" onmouseover="window.status=\' ' + t.toolName[10] + '\'" onmouseout="window.status=\'\'" onmousedown="t.setTool(\'help\')"></td>');
+toolbarHtml += '<td align="' + horizontal + '"><img name="help" src="' + t.HelpURL + '" width="' + tw + '" height="' + th + '" alt="' + t.toolName[10] + '" onmouseover="window.status=\' ' + t.toolName[10] + '\'" onmouseout="window.status=\'\'" onmousedown="t.setTool(\'help\')"></td>';
 }
-document.writeln('</tr>');
+toolbarHtml += '</tr>';
+toolbarHtml += '</table>';
+toolbarHtml += '</div>';
+document.body.insertAdjacentHTML('beforeend', toolbarHtml);
 </script>
-</table>
-</div>
 <div align="center">
 <form name="coordinateDisplay">
 x: <input type="text" name="x"><BR>

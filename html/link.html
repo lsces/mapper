@@ -5,25 +5,44 @@
 <title>Weiterführende Links</title>
 <script language="javascript">
 var t = parent.ScriptFrame;
-document.write('<link rel="stylesheet" href="' + t.styleURL + '" type="text/css">');
+var styleLink = document.createElement('link');
+styleLink.rel = 'stylesheet';
+styleLink.type = 'text/css';
+styleLink.href = t.styleURL;
+document.head.appendChild(styleLink);
 </script>
 </head>
 
+<body>
 <script language="javascript">
 if(t.BereichColor1!=null){
-	document.writeln('<body scroll="auto" bgcolor="' + t.BereichColor1 + '" leftmargin="7" topmargin="5" marginwidth="7" marginheight="5" link="#000000" vlink="#000000" alink="#000000">');
+	document.body.setAttribute('scroll', 'auto');
+	document.body.setAttribute('bgcolor', t.BereichColor1);
+	document.body.setAttribute('leftmargin', '7');
+	document.body.setAttribute('topmargin', '5');
+	document.body.setAttribute('marginwidth', '7');
+	document.body.setAttribute('marginheight', '5');
+	document.body.setAttribute('link', '#000000');
+	document.body.setAttribute('vlink', '#000000');
+	document.body.setAttribute('alink', '#000000');
 }else{
-	document.writeln('<body bgcolor="#FFFFFF" onload="Load3()" leftmargin="1" topmargin="5" marginwidth="1" marginheight="5">');
+	document.body.setAttribute('bgcolor', '#FFFFFF');
+	document.body.setAttribute('leftmargin', '1');
+	document.body.setAttribute('topmargin', '5');
+	document.body.setAttribute('marginwidth', '1');
+	document.body.setAttribute('marginheight', '5');
+	window.onload = function(){ Load3(); };
 }
-document.writeln('<table width="100%" cellspacing="0" cellpadding="2" border="0">');
+var linkHtml = '<table width="100%" cellspacing="0" cellpadding="2" border="0">';
 for (i=0;i<t.weiterLink.length;i++) {
-	document.write('<tr>');
+	linkHtml += '<tr>';
 	if(t.weiterLinkURL!=null){
-		document.write('<td class="link"><a href="' + t.weiterLinkURL[i] + '" target="_blank" title="' + t.weiterLinkName[i] + '">' + t.weiterLink[i] + '</a></td>');
+		linkHtml += '<td class="link"><a href="' + t.weiterLinkURL[i] + '" target="_blank" title="' + t.weiterLinkName[i] + '">' + t.weiterLink[i] + '</a></td>';
 	}
-	document.write('</tr>');
+	linkHtml += '</tr>';
 }
+linkHtml += '</table>';
+document.body.insertAdjacentHTML('beforeend', linkHtml);
 </script>
-</table>
 </body>
 </html>

@@ -28,18 +28,81 @@ opens its `<body>` and builds its content this way. It's the wholesale pattern t
 codebase was written in, not an isolated fix.
 
 Two risk tiers once this gets scoped for real:
-- **Trivial:** the 7 `_blank.html` files each write a single hardcoded static string with no
-  dynamic value (e.g. `tool_blank.html:10` — `document.writeln('<body bgcolor="#FFFFFF">')`) —
-  can become plain static `<body>` markup, no JS involved, zero behaviour change.
-- **Real work:** `form.html`, `help.html`, `navi.html`, `tool.html`, `legend.html`, `link.html`,
-  `map.html`, `map_init.html`, `script.php`, `theme/noFeature.html` build genuinely dynamic
-  content this way (colors/attrs pulled from `t.*`/`o.*` JS globals set by `param1.js`/
-  `script.php`, loops over layer lists, table structure for the toolbar) — converting these
-  needs real restructuring to static HTML + post-parse DOM manipulation (or server-side
-  rendering where the values are already known at request time, the same move `script.php`
-  already made for the old static `script.html`). Not scoped yet — do this file by file, same
-  "one step at a time" discipline as everything else in this package, since it's a real
-  refactor risk against a now-working, live frameset.
+- **Trivial — done 2026-07-29:** the 7 `_blank.html` files each wrote a single hardcoded static
+  string with no dynamic value (e.g. `tool_blank.html:10` was
+  `document.writeln('<body bgcolor="#FFFFFF">')`) — converted to plain static `<body>` markup,
+  no JS involved, zero behaviour change. `map_blank.html` kept its real `Load1()`/frame-size-
+  detection logic, just with a static `<body>` ahead of it instead of a document.write()'d one.
+- **`script.php` — done 2026-07-29, first of the "real work" tier, confirmed live bug:** user
+  reproduced a sticky broken load on hard-reload (shift+reload) that a plain reload recovered
+  from cleanly — a real-world hit of the speculative-parser discard/reparse this whole thread is
+  about, not just a hygiene nit. Two document.write() calls fixed:
+  - The `<link rel="stylesheet">` injection (was line 38) → `document.createElement('link')` +
+    `document.head.appendChild()`, same position/timing in the parse, no parser-stream injection.
+  - The `<body onload=... bgcolor=... onunload=...>` open (was line 90) → static `<body>` tag
+    (attributes minus the JS-dependent ones) with `document.body.setAttribute('bgcolor', ...)`,
+    `window.onload = Load2`, `window.onunload = closeWindows` in a script right after — same
+    pattern as `map_blank.html`. `BereichColor1` (from `param1.js`, loaded earlier in the same
+    document via `<script src>`) is already available at that point either way, so timing is
+    unaffected.
+- **Rest of `html/`+`theme/noFeature.html` — done 2026-07-29.** `form.html`, `legend.html`,
+  `link.html`, `tool.html`, `navi.html`, `map.html`, `map_init.html`, `help.html`,
+  `theme/noFeature.html` all converted: stylesheet `<link>` injections →
+  `createElement`/`appendChild`; conditional `<body ...>` opens → static `<body>` +
+  `document.body.setAttribute(...)`; loop-built table/form content → accumulate into a string,
+  single `document.body.insertAdjacentHTML('beforeend', ...)` at the end. Where an `onload="X()"`
+  attribute referenced a function not actually defined in that file (dead else-branches — every
+  `*FrameColor`/`BereichColor1` var is always set in `param1.js`, so the "color is null" branches
+  never execute in practice) the replacement is `window.onload = function(){ X(); };`, not a bare
+  `window.onload = X;` — preserves the original's deferred-at-invocation-time failure semantics
+  instead of throwing immediately at assignment time (bare reference would ReferenceError right
+  away since `X` isn't declared in that file's scope at all).
+  - `map.html` needed more than itself: its actual layer-drawing `document.write()` calls lived in
+    `scripts/layer.js`'s `createBackLayer1`/`createBackLayer2`/`createMapLayer`/`createElseLayer`
+    (called cross-frame as `t.createBackLayer1(...)` etc, `t = parent.ScriptFrame`, writing into
+    `m.document` where `m = parent.MapFrame` — i.e. back into `map.html`'s own document while it's
+    still parsing). Converted to `m.document.createElement('div')` + `style.cssText` +
+    `appendChild`; the now-unused `addRest()` helper (only existed to write the closing `</div>`
+    after these) was removed.
+  - **Real bug found via this pass, not a timing artifact:** `navi.html`'s `<form name="navi">`
+    opened *mid-table*, between two `<tr>`s, not wrapping it — invalid HTML5 (a `<form>` directly
+    inside `<table>` gets immediately popped off the stack per spec) that only "worked" before via
+    the legacy "form element pointer" backward-compat mechanism, which turned out to be sensitive
+    to *how* the markup is parsed. Building the whole block as one string + a single
+    `insertAdjacentHTML` doesn't trigger that mechanism the same way live incremental
+    `document.write()` did, so `document.navi.layer` came back `undefined` — broke both the
+    identify tool (`scripts/query.js` reading `parent.NaviFrame.document.navi.layer`) and navi.html's
+    own `updateLayer()`/`refreshVisibility()` (`this.document.navi.layer`). Fix: don't rely on the
+    quirk at all — moved `<form name="navi">` to properly wrap the entire `<table>...</table>`
+    instead of opening mid-table, so the inputs are genuine DOM descendants. Confirmed fixed.
+  - Pre-existing cosmetic bugs in the original write-string content (e.g. `navi.html`'s
+    `<table width="100% border="0" ...>` missing a closing quote, `link.html`'s missing
+    `<table>`/`</table>` structure) were carried over unchanged — harmless, out of scope for a
+    document.write elimination pass, not touched.
+- **Three more `document.write()` calls found outside the original 9-file list, in `scripts/`,
+  triaged 2026-07-29, none actioned:**
+  - `scripts/wz_jsgraphics.js:59` (third-party vendored library) — gated behind
+    `jg_ie && document.all && !window.opera`, dead in any browser this site needs to support.
+    Left alone, matches the "third-party libs, read-only unless asked" convention even though
+    this file isn't physically under `externals/`.
+  - `scripts/query.js:83` (`textItemQuery()`, writes into a `parent.ResultFrame` that doesn't
+    exist in any current template) — genuinely dead, `textItemQuery` has no call site anywhere in
+    the package. Would throw immediately regardless of document.write. Left alone.
+  - `scripts/form.js:33` (`writeCGIForm()`) — **live**, called on every pan/zoom/click-to-zoom
+    (from `common.js`, `nav.js`, `toolbar.js`), so highest-frequency document.write call site in
+    the package by far. **Deliberately left as-is (user decision, 2026-07-29)**: this call happens
+    on an already-loaded `FormFrame` document (not mid-network-parse), so `document.write()` here
+    triggers the browser's *implicit `document.open()`* behavior (in-memory full-document
+    replacement, no network stream involved) rather than the speculative-preload-scanner hazard
+    this whole thread is about — it's a different anti-pattern than the 9 files above, doesn't
+    reproduce the "unbalanced tree...reparsed from network" warning, and isn't worth the
+    regression risk of touching the package's hottest code path for a hazard it doesn't actually
+    have.
+- **Known naming leftover, not actioned:** `BereichColor1`/`BereichColor2` (`scripts/param1.js`)
+  are German-leftover names ("Bereich" = area/region) — another Anglicisation candidate like
+  `theme/land_header.html`'s leftover "Rheinland-Pfalz" content, below. Don't rename without
+  checking all call sites (`param1.js`, `RahmOutColor`/`RahmInColor` derive from these too) —
+  not scoped, do it as its own pass.
 
 ## Frame load-choreography chain (file-reachability side-finding, not the "unbalanced tree" fix)
 Every child iframe's *initial* `src` in the Smarty templates (`center_view_map.tpl`,
