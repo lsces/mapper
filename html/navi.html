@@ -132,10 +132,13 @@ var t = parent.ScriptFrame;
 	naviHtml += '<tr><td><img src="' + t.visibilityIconURL + '" width="14" height="14" border="0" hspace="4" alt="' + t.toolName[0] + '" onmouseover="window.status=\' ' + t.toolName[0] + '\'" onmouseout="window.status=\'\'"></td>';
 	naviHtml += '<td colspan="2"></td></tr>';
 
+	var layerExclusive = (typeof t.layerExclusive === 'undefined') ? true : t.layerExclusive;
+	var layerInputType = layerExclusive ? 'radio' : 'checkbox';
+
 	for(i=0;i<t.layerList.length;i++){
 		naviHtml += '<tr>';
 		naviHtml += '<td>';
-		naviHtml += '<input type="radio"  name="layer" value="' + t.layerList[i] + '"';
+		naviHtml += '<input type="' + layerInputType + '" name="layer" value="' + t.layerList[i] + '"';
 		if(t.autoRefresh){
 			 naviHtml += ' onClick="updateLayer()"';
 		}else{
@@ -181,12 +184,25 @@ var t = parent.ScriptFrame;
 
 naviHtml += '</table>';
 naviHtml += '</form>';
+naviHtml += '<p>' + (layerExclusive ? 'Select ONE of the above maps, and click Update Map, the area displayed will switch to that years map.' : 'Select any of the above layers to show, and click Update Map.') + '</p>';
 if(t.autoRefresh==false){
     naviHtml += '<DIV align="center" style="margin-top:25px;">';
-	naviHtml += '<img src="'+t.imagePath1+'/nk2.gif" onMouseDown="updateLayer()"';
+	naviHtml += '<img src="'+t.imagePath1+'/nk2.gif" onMouseDown="updateLayer()">';
 	naviHtml += '</DIV>';
 }
 document.body.insertAdjacentHTML('beforeend', naviHtml);
+
+//layer count (and so content height) varies per mapset - see
+//mapper/CLAUDE.md - size the iframe to whatever actually got inserted
+//above. Wait for the window 'load' event (not just the insertAdjacentHTML
+//above) since the nk2.gif Update button has no width/height attributes -
+//its real size, and so the final layout height, isn't known until it
+//actually finishes loading
+window.addEventListener('load', function() {
+	if (window.frameElement) {
+		window.frameElement.style.height = (document.body.scrollHeight + 10) + 'px';
+	}
+});
 </script>
 </body>
 </html>

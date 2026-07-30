@@ -220,6 +220,105 @@ additions from landing in the public `github.com/lsces/mapper` repo by accident.
   (`navi.html`, the old `script.html`) and **not** for `LEGEND TEMPLATE`
   (`theme/legend.html`), which uses a different, unvalidated fragment-substitution path.
 
+## Meridian vector mapset — wired up 2026-07-30
+Investigated the "what to do with ~1.1GB in `data/`" pending thread. Turned up two findings:
+`map/OS250.map` (pre-existing, never registered in any mapset) is dead scaffolding — its 5
+raster `LAYER`s (OS250k, 4× miniscale, OS10k) point at `TILEINDEX` shapefiles whose target
+`.tif` tiles were never actually downloaded; `data/os250k/`, `data/os10k/`, `data/MiniScale/`
+contain only placeholder `readme.txt`s linking a now-dead OS product page. The real ~1.1GB is
+almost entirely `data/meridian/` (OS Meridian 2, GB-wide vector: roads by class, rail,
+settlements, county/district/dlua boundaries, lakes, woodland, coastline, rivers, ~33k cartotext
+labels) — untouched by any mapfile until now.
+
+Built `map/meridian.map` with real vector `LAYER`s (`LINE`/`POLYGON`/`POINT` straight off
+`data/meridian/data/*.shp`, no tileindex needed — small enough to load whole). Included: `woodland_region`, `lake_region`,
+`county_region` (off by default), `coast_ln_polyline`, `river_polyline` (off),
+`rail_ln_polyline` (off), `motorway_polyline`, `a_road_polyline`, `b_road_polyline` (off),
+`minor_rd_polyline` (off), `settlemt_point`, `station_point` (off). Deferred, not included:
+`admin_ln_polyline`/`dlua_region`/`junction_font_point`/`rndabout_point` (minor/redundant with
+what's already there), the `text` cartotext label layer (33k records, own pass needed).
+
+Hit two MapServer-version compatibility errors while building it (confirmed via direct `mapserv`
+CGI test, `mapserv -v` reports 8.6.5 installed): a `MAP`-level `TRANSPARENT` directive is no
+longer valid, and `WEB`-level `MINSCALE`/`MAXSCALE` were removed in favour of `LAYER`-level
+`MAXSCALEDENOM`/`MINSCALEDENOM`. `OS250.map` has both of the same directives and would throw the
+identical parse errors if it were ever actually loaded — not fixed, since that file is still
+unregistered dead scaffolding with no real data behind it either.
+
+`settlemt_point`/`station_point` needed `MAXSCALEDENOM 300000` — without it, rendering all
+23,868 settlement points+labels at whole-GB extent produces a solid black smear over England
+(confirmed empirically, not guessed). Fine once zoomed to city level.
+
+Verified via direct `mapserv` CGI invocation (`REQUEST_METHOD=GET QUERY_STRING=...`), not through
+the browser frameset: a whole-GB overview render (clean, no clutter) and a zoomed ~70km box
+around London (M25 ring, Thames, motorway/A/B/minor road colour tiers all correctly visible) —
+both produced valid, legible PNGs.
+
+**Moved to private/lsces ownership, same day, once the browser-tested viewer looked right.**
+`meridian.map` hardcodes `/srv/website/lsces/...` paths (see below), so - same reasoning as
+`iom_years.map` - it can't be the public package's demo mapset. Data moved from
+`mapper/data/meridian/data/` to `storage/mapper/meridian/data/` (real per-site storage, matching
+where the IOM historic rasters already live); `meridian.map` moved from a tracked package file to
+`/etc/webstack/mapserver/meridian.map` with `mapper/map/meridian.map` now a symlink to it (exact
+`iom_years.map` pattern); the `'meridian'` mapset entry moved out of the public
+`includes/mapsets_inc.php` into `/etc/webstack/domains/lsces/mapper_mapsets.php`, alongside
+`'iom'`. Re-verified post-move via direct `mapserv` CGI call through the symlink path (must use
+the `mapper/map/...` symlink, not the real `/etc/webstack/...` path directly - `mapserver.conf`'s
+`MS_MAP_PATTERN` only allows paths matching `^/srv/website/[^/]+/mapper/`) - identical render to
+pre-move. `mapper/includes/mapsets_inc.php` now only has `'test'` again.
+
+## Bitweaver-module vs. raw-frameset dimension mismatch — found + partially fixed 2026-07-30
+The original mapper HTML (`html/*.html`, `modules/mod_*.tpl`) was never designed to sit inside
+Bitweaver's module/sidebar system — it's a bolted-on wrapper around a standalone MapServer JS
+frameset that assumed one hand-tuned mapset (`iom`, near-square extent, 5 layers). Adding
+`meridian` (tall portrait GB extent, 12 layers) exposed this directly: `modules/mod_navi.tpl`
+and `modules/mod_overview.tpl` both hardcode a fixed pixel `height` on their iframe, sized to fit
+`iom`'s content only.
+- **NaviFrame** (`modules/mod_navi.tpl`, `html/navi.html`): fixed `height:180px` clipped
+  meridian's 12-checkbox list with no scrollbar (`scrolling="no"`). Fixed in two parts: the
+  per-layer toggle changed from `<input type="radio">` to `type="checkbox"` (was mutually-
+  exclusive, wrong for independently-combinable layers - see `layerExclusive` mapset flag below)
+  and `navi.html` now sets `window.frameElement.style.height` to `document.body.scrollHeight`
+  right after building the layer list, so the iframe always fits whatever the active mapset's
+  layer count actually needs. The template's own `height:180px` is now just the pre-JS fallback;
+  `scrolling="auto"` stays as a defensive no-op in case the resize script doesn't run.
+- **FormFrame/Overview** (`modules/mod_overview.tpl`, `html/form.html`): fixed `height:120px`
+  clipped the reference-map thumbnail to its top ~55%, which for meridian's tall GB extent meant
+  only Scotland/northern England was ever visible or clickable - reported by the user as "works
+  as long as I only work in Scotland". Same resize-to-content fix: `form.html`'s `Load3()` (plus
+  the `<input name="ref">`'s own `onload`) now sets `window.frameElement.style.height` to
+  `document.body.scrollHeight` once the reference image has actually loaded.
+  - **Deliberately did NOT make the reference image itself CSS-responsive** (no
+    `width:100%`/`max-width` on the `<input name="ref">`). MapServer's click-to-recenter feature
+    (clicking the reference thumbnail to pan the main map) reads the click's x/y in the
+    *rendered* pixel space of that `<input type="image">` and assumes it matches the mapfile's
+    own `REFERENCE SIZE` directive exactly. Any CSS that rescales the displayed image away from
+    its native `SIZE` breaks that coordinate mapping silently (clicks pan to the wrong place,
+    no error). First pass of this fix used `width:100%; height:auto` and had to be reverted for
+    exactly this reason - caught before it shipped, not from a live bug report.
+  - Still open: there's visibly unused horizontal space in the Overview box on wider layouts
+    (user's own observation - "room for a much longer frame on the right"), since
+    `meridian.map`'s `REFERENCE SIZE 100 217` is narrower than the sidebar column allows. Fixing
+    this properly (without the coordinate bug above) means regenerating
+    `graphics/meridian_overview.png` at a wider native resolution and widening `REFERENCE SIZE`
+    in `meridian.map` to match exactly - not CSS scaling. Needs the real column width (not yet
+    measured - no Chrome available on desktop for automation, see
+    `[[feedback_no_chrome]]`) before picking a size. Not actioned yet.
+
+Desktop-only so far — not deployed to srv9/srv10, not committed to the package git repo.
+
+## Full Extent hardcoded to the IOM box — found + fixed 2026-07-30
+`scripts/param1.js` hardcoded `var fullExtent = "213000 464300 250900 505524"` (the IOM box) as
+a single constant used by every mapset - toolbar.js's "Full Extent" button
+(`case "fullextent"` in `scripts/toolbar.js`) always reset to it regardless of which mapfile was
+actually loaded. Harmless with only one mapset ever existing; broke visibly the moment a second
+one did - clicking Full Extent on `meridian` snapped to the tiny IOM box, effectively showing
+nothing (real GB coordinates are nowhere near it). Fixed the same way `mapPath`/`layerList`/etc
+already work: added `'extent'` to each mapset's config (must match that mapfile's own top-level
+`EXTENT` exactly - `mapsets_inc.php` and `mapper_mapsets.php`), `html/script.php` emits it as
+`fullExtent`, and the hardcoded line in `param1.js` is gone (replaced with a comment, matching
+the existing note about the other per-mapset vars).
+
 ## Known follow-ups (not actioned)
 - Status icon (`turnLayerVisible("Status")` target in `map.html`) restored zero-sized rather
   than fully removed — some interaction handlers call it unconditionally. Re-enable somewhere

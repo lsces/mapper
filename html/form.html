@@ -34,6 +34,17 @@ parent.ScriptFrame.imgext = ext;
 function Load3() {
 	parent.MapFrame.document.location = t.mapURL;
 	parent.LegendFrame.document.location = t.legendURL;
+	resizeToContent();
+}
+
+//the reference thumbnail's real pixel shape follows the mapset's own
+//EXTENT aspect ratio (see mapper/CLAUDE.md), so this frame can't use a
+//fixed height like the old single-mapset build did - size the iframe to
+//whatever the (CSS-scaled) image actually renders at once it has loaded
+function resizeToContent() {
+	if (window.frameElement) {
+		window.frameElement.style.height = (document.body.scrollHeight + 10) + 'px';
+	}
 }
 </script>
 </head>
@@ -49,7 +60,7 @@ window.onload = Load3;
 
 <form name="mapserv" action="[program]">
 <input type="hidden" name="program" value="[program]">
-<INPUT NAME="ref" TYPE="image" SRC="[ref]" border="0">
+<INPUT NAME="ref" TYPE="image" SRC="[ref]" border="0" onload="resizeToContent()">
 <input type="hidden" name="map" value="[map]">
 <input type="hidden" name="imgext" value="[mapext]">
 <input type="hidden" name="layers" value="[layers]">

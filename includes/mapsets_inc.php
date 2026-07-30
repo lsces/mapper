@@ -17,6 +17,18 @@
  * mapset (see html/script.php). 'file' is always resolved relative to
  * MAPPER_PKG_PATH - never hardcode an absolute /srv/website/... path here,
  * that's what broke things between desktop and server deployments.
+ *
+ * 'layerExclusive' (optional, defaults true if omitted - see html/script.php)
+ * controls whether html/navi.html renders the per-layer toggles as radio
+ * buttons (true - pick one, e.g. iom's mutually-exclusive year overlays) or
+ * checkboxes (false - independently combinable layers, e.g. meridian's
+ * roads/water/boundaries stack).
+ *
+ * 'extent' must match the mapfile's own top-level EXTENT exactly - it's
+ * what the toolbar's "Full Extent" button resets to (scripts/toolbar.js).
+ * Used to be a single hardcoded constant in scripts/param1.js, which broke
+ * as soon as a second mapfile with a different EXTENT existed - see
+ * mapper/CLAUDE.md.
  */
 return [
 	'default' => 'test',
@@ -29,6 +41,8 @@ return [
 			'layerVisible'     => [ 1 ],
 			'layerIsQueryable' => [ false ],
 			'layerLink'        => [ 0 ],
+			'layerExclusive'   => true,
+			'extent'           => '213000 464300 250900 505524',
 		],
 	],
 ];

@@ -80,6 +80,8 @@ var layerAlias = <?php echo json_encode( array_values( $mapset['layerAlias'] ) )
 var layerVisible = <?php echo json_encode( array_values( $mapset['layerVisible'] ) ); ?>;
 var layerIsQueryable = <?php echo json_encode( array_values( $mapset['layerIsQueryable'] ) ); ?>;
 var layerLink = <?php echo json_encode( array_values( $mapset['layerLink'] ) ); ?>;
+var layerExclusive = <?php echo json_encode( array_key_exists( 'layerExclusive', $mapset ) ? (bool)$mapset['layerExclusive'] : true ); ?>;
+var fullExtent = <?php echo json_encode( $mapset['extent'] ); ?>;
 </script>
 <script type="text/javascript" language="JavaScript" src="../scripts/browser.js"></script>
 <script type="text/javascript" language="JavaScript" src="../scripts/common.js"></script>

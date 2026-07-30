@@ -10,14 +10,14 @@ var applicationPath = "/mapper/";
 hasHTMLLegend = true;
 
 //...map file - mapPath, layerList, layerAlias, layerVisible,
-//layerIsQueryable and layerLink are NOT declared here - they're resolved
-//server-side per site+mapset and emitted directly by html/script.php
-//(see mapper/includes/mapsets_inc.php), since this file is loaded before
-//that block runs and gets its variables overwritten there either way.
-
-//***********************extent information*************************
-//fullextent = extent in *.map
-var fullExtent = "213000 464300 250900 505524";
+//layerIsQueryable, layerLink, layerExclusive and fullExtent are NOT
+//declared here - they're resolved server-side per site+mapset and emitted
+//directly by html/script.php (see mapper/includes/mapsets_inc.php), since
+//this file is loaded before that block runs and gets its variables
+//overwritten there either way. fullExtent used to be a single hardcoded
+//constant here ("213000 464300 250900 505524" - the IOM box) which broke
+//as soon as a second mapfile with a different EXTENT existed - see
+//mapper/CLAUDE.md.
 
 //url to the page that contains the information
 //(order as in layerList)

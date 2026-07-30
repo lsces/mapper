@@ -67,5 +67,14 @@ x: <input type="text" name="x"><BR>
 y: <input type="text" name="y">
 </form>
 </div>
+<script language="javascript">
+//toolbar row count and the coordinate box are both fixed, but keeping this
+//in step with navi.html/form.html/legend.html rather than another hardcoded height
+window.addEventListener('load', function() {
+	if (window.frameElement) {
+		window.frameElement.style.height = (document.body.scrollHeight + 10) + 'px';
+	}
+});
+</script>
 </body>
 </html>
