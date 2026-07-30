@@ -332,7 +332,18 @@ sized `[ref]` and `[img]` files. **Lesson: always test a relocated/environment-s
 full `mode=browse` path on the actual deploy target, not just `mode=map` on desktop** - the two
 modes exercise different directives (`mode=map` never touches `IMAGEPATH`/`WEB TEMPLATE` at all).
 
-srv10 not yet touched.
+srv10 since deployed too (same sequence, no repeat of the IMAGEPATH bug since it pulled the
+already-fixed version) - both servers verified byte-identical data (4,853 files, 1,154,618,378
+bytes, matching desktop) and a working `mode=browse` render as the `nginx` user. `meridian` is
+now live on all three environments (desktop, srv9, srv10).
+
+**Data provenance** — no download date on record, and no metadata/README/license file anywhere
+in the `data/meridian/` tree to check (searched, including the ARC/INFO `text.e00` header -
+nothing). All 4,853 files carry an mtime in the same 78-second window: **5 June 2014, 13:59:19–
+14:00:37 BST** - too tight to be anything but a single bulk extraction, not per-file survey
+dates. Treated as a strong proxy for acquisition date, not a certainty (extraction usually
+follows shortly after download, but isn't the same event). Reflected in the mapset title
+(`mapper_mapsets.php`) as "Great Britain (OS Meridian 2, circa 2014)" rather than stated as fact.
 
 ## Full Extent hardcoded to the IOM box — found + fixed 2026-07-30
 `scripts/param1.js` hardcoded `var fullExtent = "213000 464300 250900 505524"` (the IOM box) as
