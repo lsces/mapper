@@ -305,7 +305,34 @@ and `modules/mod_overview.tpl` both hardcode a fixed pixel `height` on their ifr
     measured - no Chrome available on desktop for automation, see
     `[[feedback_no_chrome]]`) before picking a size. Not actioned yet.
 
-Desktop-only so far — not deployed to srv9/srv10, not committed to the package git repo.
+## Moved to lsces private storage + deployed to srv9 — 2026-07-30
+Data relocated from `mapper/data/meridian/data/` to `storage/mapper/meridian/data/` (real
+per-site storage, matching where the IOM historic rasters already live - see the "Moved to
+private/lsces ownership" note above). Committed and pushed: public `mapper` GitHub repo (all the
+code from this session), and `/etc/webstack` (`mapserver/meridian.map`,
+`domains/lsces/mapper_mapsets.php`) - `meridian.map` itself is **not** in the public repo, same
+as `iom_years.map`; the `mapper/map/meridian.map` symlink is manual, per-environment (nothing
+automates it, matches `iom_years.map`).
+
+Deployed to **srv9 only so far** (srv10 held back pending confirmation, per the project's
+test-srv9-first convention): webstack pulled, `server-pull-all.sh mapper` run, `map/meridian.map`
+symlink created manually, and the 1.1GB data tree rsynced across (verified byte-identical after -
+4,853 files, exact size match on both ends).
+
+**Caught a real deploy bug in the process**: `meridian.map`'s `WEB IMAGEPATH` was still
+`/srv/website/bitweaver5/storage/maps/` - copied from the public `test_rlp.map` (which is
+correctly desktop-only), not updated to the site-specific path when the file was moved to
+private/lsces ownership. Broke `mode=browse` (the WEB TEMPLATE flow real page loads use) with
+`msSaveImage(): Unable to access file` on srv9, since no `/srv/website/bitweaver5` exists there -
+raw `mode=map` testing (used earlier in this file) doesn't exercise `IMAGEPATH` at all, so it
+passed clean and this only surfaced once tested through the real deploy target. Fixed to
+`/srv/website/lsces/storage/maps/`, matching `iom_years.map`'s convention exactly; re-verified on
+srv9 as the `nginx` user (not just as `lester`) that `mode=browse` now produces real, correctly-
+sized `[ref]` and `[img]` files. **Lesson: always test a relocated/environment-specific mapfile's
+full `mode=browse` path on the actual deploy target, not just `mode=map` on desktop** - the two
+modes exercise different directives (`mode=map` never touches `IMAGEPATH`/`WEB TEMPLATE` at all).
+
+srv10 not yet touched.
 
 ## Full Extent hardcoded to the IOM box — found + fixed 2026-07-30
 `scripts/param1.js` hardcoded `var fullExtent = "213000 464300 250900 505524"` (the IOM box) as
