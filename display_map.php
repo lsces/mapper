@@ -58,9 +58,18 @@ $resolvedMapsetKey = !empty( $rawMapset ) ? $rawMapset : $mapsets['default'];
 
 // 'test' is the public package demo mapset (bit_p_v_map_mapper, basic/anonymous) - everything
 // else (iom, meridian, minisc, opmplc, vmdvec) is real OS-licensed data or private family
-// genealogy data, gated behind bit_p_view_mapper (registered). Neither permission was ever
-// actually checked anywhere before this - see mapper/CLAUDE.md.
-$gBitSystem->verifyPermission( $resolvedMapsetKey === 'test' ? 'bit_p_v_map_mapper' : 'bit_p_view_mapper' );
+// genealogy data, gated behind bit_p_view_mapper (registered).
+$requiredPermission = $resolvedMapsetKey === 'test' ? 'bit_p_v_map_mapper' : 'bit_p_view_mapper';
+
+// No mapset was explicitly requested (bare URL) and the resolved site default isn't visible
+// to this user - fall back to the public demo instead of a login wall, since they didn't ask
+// for anything specific. An explicit ?mapset=iom (or similar) still gets the normal login
+// prompt below - only the no-param "just take me to the default" case gets this softer landing.
+if( empty( $rawMapset ) && $requiredPermission !== 'bit_p_v_map_mapper' && !$gBitUser->hasPermission( $requiredPermission ) ) {
+	$resolvedMapsetKey = 'test';
+	$requiredPermission = 'bit_p_v_map_mapper';
+}
+$gBitSystem->verifyPermission( $requiredPermission );
 
 $modMap = true;
 $gBitSmarty->assign( 'modMap', $modMap );

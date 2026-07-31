@@ -80,6 +80,7 @@ function closeWindows() {
 <script type="text/javascript" language="JavaScript" src="../scripts/param1.js"></script>
 <script language="javascript">
 //active mapset, resolved server-side - see includes/mapsets_inc.php
+var mapsetKey = <?php echo json_encode( $requestedMapset ); ?>;
 var mapPath = <?php echo json_encode( MAPPER_PKG_PATH.'map/'.$mapset['file'] ); ?>;
 var layerList = <?php echo json_encode( array_values( $mapset['layerList'] ) ); ?>;
 var layerAlias = <?php echo json_encode( array_values( $mapset['layerAlias'] ) ); ?>;

@@ -33,7 +33,11 @@ if(t.SharedColor1!=null){
 	document.body.setAttribute('marginheight', '5');
 	window.onload = function(){ Load3(); };
 }
-var linkHtml = '<table width="100%" cellspacing="0" cellpadding="2" border="0">';
+var linkHtml = '';
+if( t.mapsetKey === 'test' ) {
+	linkHtml += '<p class="demo-notice"><em>This is a demonstration map. Log in for the full map catalogue.</em></p>';
+}
+linkHtml += '<table width="100%" cellspacing="0" cellpadding="2" border="0">';
 for (i=0;i<t.furtherLink.length;i++) {
 	linkHtml += '<tr>';
 	if(t.furtherLinkURL!=null){
