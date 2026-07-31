@@ -377,6 +377,163 @@ already work: added `'extent'` to each mapset's config (must match that mapfile'
 `fullExtent`, and the hardcoded line in `param1.js` is gone (replaced with a comment, matching
 the existing note about the other per-mapset vars).
 
+## OS Data library — mapsets actually built, 2026-07-31
+Following on from the "storage tiering policy" above: worked through the archived OS-Data
+library and wired up real mapsets, rather than leaving it all speculative. `meridian` renamed to
+`meridian_2014` (its true vintage, confirmed via file mtimes) once a 2016 edition was pulled from
+the archive — **both kept as separate mapsets** (`meridian_2014`, `meridian_2016`), not a
+newer-replaces-older swap; see `[[feedback_mapper_historic_no_replace]]` in memory - editions are
+historic snapshots, coexist like the `iom` year-layers do. Same non-replacement principle applied
+throughout the session.
+
+New mapsets, all following the same pattern (mapfile in `/etc/webstack/mapserver/`, data
+symlinked from `storage/mapper/<dataset>/` on srv9, cherry-picked selectively onto srv10):
+- `minisc_2019` / `minisc_2026` — OS MiniScale, 5 mutually-exclusive raster styles each
+  (standard/std_with_grid/mono/relief1/relief2), `layerExclusive: true`. Straight raster `DATA`
+  reference, no tileindex needed (single whole-GB image per style). 2026 confirmed a pure clone
+  of 2019 (identical world-file values and pixel dimensions, only filenames differ).
+- `opmplc_2020` / `opmplc_2026`, `vmdvec_2020` / `vmdvec_2026` — OS Open Map Local and OS
+  VectorMap District, both GeoPackage vector, `CONNECTIONTYPE OGR` straight into the `.gpkg` (no
+  tileindex, no per-tile files - much simpler than the raster-tile route originally considered
+  for `omlras_gtfc_gb` (OS Open Map Local *raster* tiles, 10,591 files across GB) - that dataset
+  was set aside once the GeoPackage vector alternative turned out to cover the same ground far
+  more simply. 7 curated "core" layers per mapset (TidalWater/SurfaceWater/Woodland/Road/
+  Building/NamedPlace) rather than the full raw schema - `Building` alone is 14.3M features
+  nationwide in `opmplc`, so every non-trivial layer carries a `MAXSCALEDENOM` tier, values chosen
+  from feature counts and confirmed empirically (zoomed-in/mid-zoom/whole-GB timing checks, all
+  sub-1.5s even for the busiest mapset). 2020 (mySociety mirror) and 2026 (OS Data Hub) editions
+  use different layer-name casing internally (`Building` vs `building`, `distinctiveName` vs
+  `distinctive_name`) - confirmed per-edition via `ogrinfo`, not assumed from the other year.
+  Whole-GB default view showing mostly just coastline is expected (data too dense for anything
+  else to pass `MAXSCALEDENOM` at that scale), not a bug - confirmed with the user live.
+- `over_gb` — combines both editions (2014/2026) *and* both styles (Overview/OverviewPlus) into
+  **one** mapset as four `layerExclusive` layers, matching the `iom` year-layer pattern rather
+  than separate mapsets per edition. This is the same raster already used as `meridian`'s
+  `REFERENCE` thumbnail (`graphics/gb_overview.png`) - confirmed via matching embedded GeoTIFF
+  extent, no external world file needed.
+- `zoomstack_2026` — OS Open Zoomstack, all 21 layers (not a curated subset like opmplc/vmdvec
+  needed) - this product is purpose-built as a tiered web basemap
+  (`roads_local`/`regional`/`national`, `local_buildings`/`district_buildings` already split by
+  the product itself), so used its own built-in tiering for `MAXSCALEDENOM` instead of inventing
+  one.
+
+**`mapper_mapsets.php` gained a `dataDir` gate**: entries can carry a `'dataDir'` path, filtered
+via `is_dir()` at request time (`array_filter` over the full mapset list before returning). Lets
+this one file deploy identically to srv9 (holds the full archive, symlinked from
+`/media3/OS-Data/`) and srv10 (only ever gets a deliberately cherry-picked subset actually copied
+into `storage/mapper/`) without maintaining two separate registries. Entries with no `dataDir`
+(`iom`, `test`) are assumed always-present and never filtered.
+
+## display_map.php — mapset resolution bug, found + fixed, 2026-07-31
+`display_map.php` computed a properly resolved (with fallback) mapset key for the page **title**,
+but passed the **raw, unvalidated** `$_GET['mapset']` straight through to the `mapset` Smarty
+variable that feeds `html_head_inc.tpl`'s `scriptURL`. A stale/renamed key (e.g. the old
+`meridian` link after the rename to `meridian_2014` above) reached `html/script.php` raw - since
+`script.php` is not just a content page but the JS *engine* that sets `mapPath`/`layerList` and
+redirects every other frame, this didn't gracefully fall back, it broke the whole frame
+choreography (empty map, title said one thing, nothing actually loaded). Fixed by having
+`display_map.php` resolve+validate once and pass the *resolved* key everywhere downstream;
+`script.php`'s own internal fallback stayed untouched (still needed as a safety net, but should
+now only ever see a valid key in practice).
+
+An earlier attempt at fixing the symptom - intercepting `script.php` directly with a "not found"
+error page when the mapset didn't resolve - was reverted. Same root cause: `script.php` isn't
+ordinary content, replacing its document with anything other than the real engine breaks every
+other frame's redirect. The actual fix belongs in `display_map.php`, one layer up, before
+`scriptURL` is ever built. When an explicitly-requested mapset doesn't resolve, `display_map.php`
+now calls the standard `$gBitSystem->fatalError(..., HttpStatusCodes::HTTP_NOT_FOUND)` (matching
+the pattern used across other packages, e.g. `wiki/backlinks.php`) *before* assigning `modMap`/
+`mapset`/calling `$gBitSystem->display()` at all - no iframes are even created, nothing silently
+loads a substitute map. A bare URL with no `?mapset=` still falls through to the site default
+silently, as before.
+
+## mapper permissions — never actually wired up, found + fixed, 2026-07-31
+`mapper/admin/schema_inc.php` has always declared 5 permissions (`bit_p_v_map_mapper` "Can view
+MAP files", basic/anonymous; `bit_p_view_mapper` "Can view map archives", registered; plus
+create/edit/admin variants) - but nothing in the package ever called `verifyPermission()` with
+any of them, and critically the permissions had never actually been synced into the live
+database's `users_permissions`/`users_role_permissions` tables at all (confirmed via direct
+query - zero rows for `package = 'mapper'`). Net effect: the entire mapper module, including the
+public `test` demo, was fully open to anonymous users with zero access control, on both
+localhost/dev and the real servers.
+
+Fixed in two parts:
+1. `display_map.php` now calls `$gBitSystem->verifyPermission(...)` - `test` (the public package
+   demo) stays gated on `bit_p_v_map_mapper` (basic), everything else (`iom`, `meridian_*`,
+   `minisc_*`, `opmplc_*`, `vmdvec_*`, `over_gb`, `zoomstack_2026`) requires `bit_p_view_mapper`
+   (registered), since it's now real OS-licensed data or private family genealogy data rather
+   than a demo. A bare URL with a resolved default the current user can't see falls back to the
+   `test` demo instead of a login wall - only an *explicit* `?mapset=` for something private
+   still prompts to log in.
+2. `script.php` now emits `mapsetKey`, and `html/link.html` shows *"This is a demonstration map.
+   Log in for the full map catalogue."* when viewing `test` - browser-cached, needs a hard
+   refresh to see after deploy.
+
+**The missing DB rows were the real fix, not the code** - first attempt hand-wrote the matching
+`INSERT`s directly via `isql` (reverse-engineered from how other packages' working permissions
+are structured: `users_permissions` row + `users_role_permissions` row per granted role,
+`role_id -1`=anonymous/`3`=registered/`2`=editors). This worked but was the wrong tool - the
+Bitweaver admin installer has its own cleanup stage that detects and installs exactly this kind
+of gap automatically; the user ran that on srv9 and srv10 instead once flagged. See
+`[[feedback_installer_permission_cleanup]]` in memory - check for that mechanism first next time
+before hand-writing permission SQL.
+
+## test_rlp.map / OS250.map — hardcoded paths, symlink-vs-real-location gotcha, 2026-07-31
+Both `test_rlp.map` and `OS250.map` are genuine files living directly in `mapper/map/` (unlike
+`iom_years.map`/`meridian_*.map`/etc, which are manual symlinks into `/etc/webstack/mapserver/` -
+see the "not git-tracked" section below). `test_rlp.map` had `SHAPEPATH
+"/srv/website/bitweaver5/mapper/data"` and `IMAGEPATH "/srv/website/bitweaver5/storage/maps/"` -
+both hardcoded to desktop's specific flat-checkout path. Worked fine on desktop by coincidence,
+broke on every server. Never caught before because the permission gap above meant nobody could
+actually reach the `test` mapset live to trigger it.
+
+**Root cause is deeper than a wrong path** - it's a real architectural conflict for this one
+specific file. Every site's `mapper/` (e.g. `lsces/mapper`) is a **symlink** to the shared
+`_bw5/mapper` package checkout (`realpath /srv/website/lsces/mapper/map` resolves to
+`/srv/website/_bw5/mapper/map`). MapServer resolves a mapfile's relative paths against that *real*
+(symlink-followed) location, not the apparent per-site path used to reach it - so a relative
+`SHAPEPATH`/`IMAGEPATH` computed from `mapper/map/` always lands under the shared `_bw5/` tree,
+never under any specific site's `storage/`. This is exactly why every *other* mapfile hardcodes an
+absolute, site-specific path instead of a relative one - they're deployed per-site into webstack,
+one real copy each. `test_rlp.map` can't do that and stay the single portable public demo.
+
+Fix, in two parts:
+- `SHAPEPATH` → relative `"."` (works fine - doesn't need to reach outside the shared package,
+  and "the mapfile's own real directory" is unambiguous regardless of which site's symlink was
+  used to get there).
+- `IMAGEPATH` → **cannot** be relative (needs a genuinely site-specific writable target) and
+  **cannot** be hardcoded in the git-tracked file either (would defeat the "clean clone, works
+  out of the box" point of keeping it public/portable). Resolved with
+  `git update-index --skip-worktree map/test_rlp.map` on each server: `git pull` deploys the
+  clean relative-path version everywhere, then each server gets a **local-only** edit hardcoding
+  its own real `IMAGEPATH` (matching every other mapfile's convention), and skip-worktree tells
+  git to leave that local edit alone on all future pulls instead of fighting it. GitHub/desktop
+  keep the portable version; srv9/srv10 each quietly diverge in their own worktree.
+
+`OS250.map` had the same two hardcoded-path bugs, *plus* invalid `WEB`-level
+`MINSCALE`/`MAXSCALE` (removed in current MapServer, replaced by per-layer `MAXSCALEDENOM`/
+`MINSCALEDENOM` - same issue already documented above for a different reason), *plus* its
+`TILEINDEX`-referenced raster tiles (OS250k/MiniScale/OS10k) were never actually included, only
+placeholder text. Not worth fixing paths on a file that could never render regardless - removed
+entirely, along with its exclusive tileindex shapefiles and placeholder folders. Properly
+superseded by `minisc_2019`/`minisc_2026` and the (not yet wired into a mapset) `ras250_gb_2026`
+archive data.
+
+Along the way, found and removed a pile of untracked, desktop-local-only leftover data in
+`mapper/data/` that predated this session's organised OS-Data library and had been fully
+superseded: a `MiniScale_*_R14.*` tileindex set (pointing at tiles that were never downloaded,
+same dead-scaffolding pattern as `OS250.map`), a 56-tile `ras250_gb` index (ditto - real tiles now
+exist properly in `storage/mapper/ras250_gb_2026/`), and a completely empty `os50k_vec/`
+directory skeleton (zero files, unreferenced by any mapfile). None of this was git-tracked, so no
+package-repo action was needed for it.
+
+## iom_years data — moved into its own subfolder, 2026-07-31
+The 5 historic IOM raster pairs (`IOM1880bw`, `IOM1906`, `IOM1940`, `IOM1947`, `IOM25000a`, each
+`.tif`+`.tfw`) used to sit as loose files directly in `storage/mapper/` - the only dataset not
+following the "one subfolder per dataset" convention everything else in this session's OS-Data
+work uses. Moved to `storage/mapper/iom_years/`, `iom_years.map`'s `SHAPEPATH` updated to match.
+Desktop, srv9, and srv10 all done consistently.
+
 ## Known follow-ups (not actioned)
 - Status icon (`turnLayerVisible("Status")` target in `map.html`) restored zero-sized rather
   than fully removed — some interaction handlers call it unconditionally. Re-enable somewhere
@@ -386,6 +543,16 @@ the existing note about the other per-mapset vars).
   running instance anywhere — not part of this revival.
 - Whether `storage/mapper` source rasters should eventually become real `LibertyMime`
   attachments (once the DB-backed map catalog exists) — raised, not decided.
+- `pancon_gb_2016` (Land-Form PANORAMA Contours, DXF, 812 tiles across GB) — investigated
+  2026-07-31, held for later. Usable but more involved than the recent builds: no embedded CRS
+  (DXF entities layer reports `Geometry: Unknown (any)`, needs explicit `PROJECTION` override and
+  likely a mixed point/line-entity split by the `Layer` attribute), and needs a `gdaltindex`-built
+  TILEINDEX across the 812 files, same pattern originally considered (then dropped) for
+  `omlras_gtfc_gb`.
+- srv10 cherry-pick list — which of the newer mapsets (`meridian_2016`, `minisc_*`, `opmplc_*`,
+  `vmdvec_*`, `over_gb`, `zoomstack_2026`) actually get their data copied to production, vs.
+  staying srv9-only. Not decided yet; `mapper_mapsets.php`'s `dataDir` gate means nothing breaks
+  either way in the meantime.
 
 See `[[project_mapper_osrm_revival]]` memory for the full session-by-session history (wrong
 turns included) behind the choices above.
