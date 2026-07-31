@@ -26,7 +26,7 @@ IMAGETYPE PNG
 #
 WEB
   TEMPLATE "../html/form.html"
-  IMAGEPATH "/srv/website/bitweaver5/storage/maps/"
+  IMAGEPATH "../../storage/maps/"
   IMAGEURL "/storage/maps/"
   EMPTY "../theme/noFeature.html"
 END
