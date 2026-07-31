@@ -396,8 +396,9 @@ symlinked from `storage/mapper/<dataset>/` on srv9, cherry-picked selectively on
   VectorMap District, both GeoPackage vector, `CONNECTIONTYPE OGR` straight into the `.gpkg` (no
   tileindex, no per-tile files - much simpler than the raster-tile route originally considered
   for `omlras_gtfc_gb` (OS Open Map Local *raster* tiles, 10,591 files across GB) - that dataset
-  was set aside once the GeoPackage vector alternative turned out to cover the same ground far
-  more simply. 7 curated "core" layers per mapset (TidalWater/SurfaceWater/Woodland/Road/
+  was set aside as the quicker path to a working mapset that session, **not because raster is
+  obsolete** - see "Known follow-ups" below, raster still has real value for some uses and this
+  is meant to be picked back up, not abandoned. 7 curated "core" layers per mapset (TidalWater/SurfaceWater/Woodland/Road/
   Building/NamedPlace) rather than the full raw schema - `Building` alone is 14.3M features
   nationwide in `opmplc`, so every non-trivial layer carries a `MAXSCALEDENOM` tier, values chosen
   from feature counts and confirmed empirically (zoomed-in/mid-zoom/whole-GB timing checks, all
@@ -549,10 +550,30 @@ Desktop, srv9, and srv10 all done consistently.
   likely a mixed point/line-entity split by the `Layer` attribute), and needs a `gdaltindex`-built
   TILEINDEX across the 812 files, same pattern originally considered (then dropped) for
   `omlras_gtfc_gb`.
-- srv10 cherry-pick list — which of the newer mapsets (`meridian_2016`, `minisc_*`, `opmplc_*`,
-  `vmdvec_*`, `over_gb`, `zoomstack_2026`) actually get their data copied to production, vs.
-  staying srv9-only. Not decided yet; `mapper_mapsets.php`'s `dataDir` gate means nothing breaks
+- srv10 cherry-pick list — partially actioned 2026-07-31 (`meridian_2014`, `minisc_2026`,
+  `over_gb` copied over directly, no `/media3` archive on srv10 so real copies not symlinks -
+  single-disk hardware, see `[[project_srv10_hardware]]`). Rest of the newer mapsets
+  (`meridian_2016`, `minisc_2019`, `opmplc_*`, `vmdvec_*`, `zoomstack_2026`) still srv9-only,
+  decision on which (if any) more to promote not made yet - `dataDir` gate means nothing breaks
   either way in the meantime.
+- **`MapFrame` iframe height is a fixed `731px`, not dynamic** (`templates/center_view_map.tpl`)
+  — found 2026-07-31, once the newer mapsets became actually reachable. `NaviFrame`/`FormFrame`
+  already got resize-to-content JS in the 2026-07-30 pass (see the "Bitweaver-module vs.
+  raw-frameset dimension mismatch" section above), `MapFrame` never did. Most of today's mapsets
+  use `SIZE 500 1083` (vs. `iom`'s `SIZE 600 600`, which the 731px was presumably sized around) -
+  the taller image forces the iframe to scroll, which then clips/misaligns the pan-arrow overlay
+  controls (positioned by `nav.js`/`toolbar.js` relative to the iframe's own viewport, not the
+  full image). Proper fix needs each mapset's real `SIZE` added to the registry shape and emitted
+  via `script.php` (matching how `fullExtent` already works), then `MapFrame` resized the same
+  way `NaviFrame`/`FormFrame` are. Not done - logged only.
+- **Raster mapsets are still wanted, not just superseded by vector** - `omlras_gtfc_gb`
+  (OS Open Map Local, raster tiles) was set aside this session in favour of the `opmplc_2020`/
+  `_2026` GeoPackage vector build, but that's a "simpler to build first" choice, not a "raster is
+  obsolete" one - raster renders are better suited to some applications (e.g. exact visual fidelity
+  to the original cartographic product, no per-layer styling to get wrong) than a styled vector
+  reconstruction ever will be. `omlras_gtfc_gb`'s TILEINDEX approach (10,591 tiles, `gdaltindex`
+  already installed and proven working for it earlier this session) is still the right path
+  whenever it's picked back up - not dead, just not next.
 
 See `[[project_mapper_osrm_revival]]` memory for the full session-by-session history (wrong
 turns included) behind the choices above.
