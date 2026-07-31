@@ -1,3 +1,0 @@
-Data for the os250k maps can be downloaded from 
-http://www.ordnancesurvey.co.uk/oswebsite/products/250k-raster/index.html
-Usually updated each June
