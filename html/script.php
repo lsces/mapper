@@ -24,6 +24,12 @@ if( file_exists( $siteMapsetsFile ) ) {
 	}
 }
 
+// script.php is ScriptFrame's own document - it's not just a page, it's the engine that
+// sets mapPath/layerList and redirects every other frame (see Load2() below). A missing/
+// invalid mapset here must fall back silently, not replace this document's content with an
+// error message - that would break the frame choreography entirely (empty map, no redirect).
+// display_map.php resolves+validates the mapset once (with its own fallback) and passes the
+// resolved key down via scriptURL, so this should only ever see a valid key in practice.
 $requestedMapset = ( !empty( $_GET['mapset'] ) && !empty( $mapsets['mapsets'][$_GET['mapset']] ) ) ? $_GET['mapset'] : $mapsets['default'];
 $mapset = $mapsets['mapsets'][$requestedMapset];
 ?>

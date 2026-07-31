@@ -14,6 +14,8 @@
  * required setup
  */
 require_once( '../kernel/includes/setup_inc.php' );
+use Bitweaver\KernelTools;
+use Bitweaver\HttpStatusCodes;
 
 // require_once( LIBERTY_PKG_PATH.'lookup_content_inc.php');
 
@@ -25,13 +27,11 @@ $gBitSystem->setBrowserTitle( 'Display Mapsever map');
 
 //$gDefaultCenter = 'bitpackage:mapper/center_view_map.tpl';
 //$gBitSmarty->assign_by_ref( 'gDefaultCenter', $gDefaultCenter );
-$modMap = true;
-$gBitSmarty->assign( 'modMap', $modMap );
-
-// whitelist only - actual mapset validity is re-checked by html/script.php
-// against includes/mapsets_inc.php before it's ever used
-$mapset = ( !empty( $_GET['mapset'] ) && preg_match( '/^[A-Za-z0-9_-]+$/', $_GET['mapset'] ) ) ? $_GET['mapset'] : '';
-$gBitSmarty->assign( 'mapset', $mapset );
+// whitelist the raw param, then resolve+validate it against the registry below - html/
+// script.php trusts whatever 'mapset' Smarty variable this assigns, so it must never be
+// passed through unvalidated (a stale/renamed key here used to reach scriptURL raw, which
+// broke the whole frame choreography rather than falling back - see mapper/CLAUDE.md).
+$rawMapset = ( !empty( $_GET['mapset'] ) && preg_match( '/^[A-Za-z0-9_-]+$/', $_GET['mapset'] ) ) ? $_GET['mapset'] : '';
 
 // resolve the mapset's title for the page heading - same merge logic as
 // html/script.php / select_map.php (see includes/mapsets_inc.php). Stopgap
@@ -47,7 +47,17 @@ if( file_exists( $siteMapsetsFile ) ) {
 		$mapsets['default'] = $siteMapsets['default'];
 	}
 }
-$resolvedMapsetKey = ( !empty( $mapset ) && !empty( $mapsets['mapsets'][$mapset] ) ) ? $mapset : $mapsets['default'];
+
+// Explicitly requested and not found - standard site "not found" error, same as any other
+// package (see wiki/backlinks.php etc), instead of loading the map viewer at all.
+if( !empty( $rawMapset ) && empty( $mapsets['mapsets'][$rawMapset] ) ) {
+	$gBitSystem->fatalError( KernelTools::tra( 'The requested map could not be found' ), null, null, HttpStatusCodes::HTTP_NOT_FOUND );
+}
+
+$modMap = true;
+$gBitSmarty->assign( 'modMap', $modMap );
+$resolvedMapsetKey = !empty( $rawMapset ) ? $rawMapset : $mapsets['default'];
+$gBitSmarty->assign( 'mapset', $resolvedMapsetKey );
 $gBitSmarty->assign( 'mapsetTitle', $mapsets['mapsets'][$resolvedMapsetKey]['title'] );
 
 $gBitSystem->display( 'bitpackage:mapper/center_view_map.tpl', NULL, array( 'display_mode' => 'display' ));
