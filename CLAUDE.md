@@ -193,6 +193,26 @@ an earlier design assumed one would be, don't reintroduce it.
   (`--exclude=maps`, `/etc/webstack/cron.daily/firebird-backup`) — purely regenerable output,
   no reason to push it through the srv10→desktop mirror.
 
+## OS data library — storage tiering policy (decided 2026-07-30)
+A large "library" of OS Open Data products has been assembled (see the Meridian/OS-data-library
+sections above, and [[project_mapper_genealogy_goal]] in memory for the full 16-dataset list) —
+most of it experimental, not yet wired into any mapset. Three-tier policy agreed with the user
+for where this data actually lives:
+- **`srv9:/media3/Archive/OS-Data/`** (and, once done, a `media4` mirror for the same redundancy
+  the old mapper backups had) — the full library, every dataset, both old mySociety-mirrored
+  editions and current OS Data Hub ones, plus original zips in `OS-Data/source/`. This is the
+  archive/backup tier — not a live serving path.
+- **`storage/mapper/<dataset>/`** (real per-site storage, e.g. `lsces/storage/mapper/meridian/`)
+  — reserved for datasets actually wired into a *kept* live mapset, as a real copy independent
+  of the archive (matches how `meridian`'s data already lives there, not symlinked back to
+  `OS-Data/`). While a dataset is still being evaluated/tested, symlinking `storage/mapper/X` →
+  the `OS-Data/` archive copy is fine (avoids duplicating data before it's proven worth keeping)
+  — promote to a real copy only once a mapset built from it is actually being kept.
+- **srv10** gets only whichever datasets end up wired into a mapset that's actually kept
+  (explicit user policy: "srv10 will only have it's used data sets in storage/mapper") — never
+  the speculative full library. srv9 is the one that holds everything, matching the project's
+  usual test-on-srv9-first convention.
+
 ## Mapfile / mapserver.conf — not git-tracked, manual per environment
 `map/iom_years.map` (site-specific mapfile) and `/etc/mapserver.conf` are both manual symlinks
 into `/etc/webstack/mapserver/` — deliberately outside the public `mapper` package repo (mapfile
