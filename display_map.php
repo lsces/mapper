@@ -54,9 +54,16 @@ if( !empty( $rawMapset ) && empty( $mapsets['mapsets'][$rawMapset] ) ) {
 	$gBitSystem->fatalError( KernelTools::tra( 'The requested map could not be found' ), null, null, HttpStatusCodes::HTTP_NOT_FOUND );
 }
 
+$resolvedMapsetKey = !empty( $rawMapset ) ? $rawMapset : $mapsets['default'];
+
+// 'test' is the public package demo mapset (bit_p_v_map_mapper, basic/anonymous) - everything
+// else (iom, meridian, minisc, opmplc, vmdvec) is real OS-licensed data or private family
+// genealogy data, gated behind bit_p_view_mapper (registered). Neither permission was ever
+// actually checked anywhere before this - see mapper/CLAUDE.md.
+$gBitSystem->verifyPermission( $resolvedMapsetKey === 'test' ? 'bit_p_v_map_mapper' : 'bit_p_view_mapper' );
+
 $modMap = true;
 $gBitSmarty->assign( 'modMap', $modMap );
-$resolvedMapsetKey = !empty( $rawMapset ) ? $rawMapset : $mapsets['default'];
 $gBitSmarty->assign( 'mapset', $resolvedMapsetKey );
 $gBitSmarty->assign( 'mapsetTitle', $mapsets['mapsets'][$resolvedMapsetKey]['title'] );
 
