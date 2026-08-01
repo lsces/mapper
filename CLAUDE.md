@@ -535,6 +535,61 @@ following the "one subfolder per dataset" convention everything else in this ses
 work uses. Moved to `storage/mapper/iom_years/`, `iom_years.map`'s `SHAPEPATH` updated to match.
 Desktop, srv9, and srv10 all done consistently.
 
+## MapFrame scrollbar / clipped pan-arrows — found + fixed, 2026-08-01
+Once the mapper permission gap (above) was fixed, `meridian`/`meridian_2014` etc became actually
+viewable in a real browser for the first time in a while, surfacing a real display bug: a
+vertical scrollbar inside `MapFrame`, clipping the top/bottom edge of the map view.
+
+**Wrong turns worth recording, since they're natural things to suspect first:**
+- **Not a `MapFrame` outer-size problem.** Tried dynamically resizing the iframe to match
+  MapServer's own `[mapsize]` WEB TEMPLATE value (`html/form.html`) - fixed the symptom for one
+  specific mismatch but was the wrong model entirely and got reverted. `MapFrame`'s size is
+  legitimately fixed by the outer page (`templates/center_view_map.tpl`, `width:99%;
+  height:731px;`) - unlike `NaviFrame`/`FormFrame`, which genuinely need JS resize-to-content
+  because their content length isn't knowable until the browser renders it, `MapFrame` doesn't
+  need any dynamic sizing logic at all.
+- **Not a mapfile `SIZE` vs frame-size mismatch either**, despite how it looks. `html/map_init.html`
+  submits `mapsize` as an actual request parameter (`t.MapWidth + ' ' + t.MapHeight`, both derived
+  from the iframe's own real pixel dimensions via `scripts/common.js`), which overrides the
+  mapfile's `SIZE` directive for that request. MapServer *always* renders at whatever size the
+  frame currently is, dynamically, on every load/pan/zoom - the mapfile's own `SIZE` line only
+  matters for requests that don't supply `mapsize` (e.g. manual `mapserv` CLI/curl testing,
+  which is why manual testing this session never reproduced the bug). Confirmed empirically before
+  chasing this further, not assumed.
+- **Not a `common.js` positioning-math bug**, despite `map.html`'s absolutely-positioned layer
+  soup (`mapBack1-4`, the map image, all 4 pan buttons, scale, status, `myCanvas`/`crossCanvas`)
+  being a very plausible suspect. Traced every layer's `top`/`height` by hand and confirmed via
+  live browser console (`sf.MapFrameHeight`/`MapHeight`/`postop` etc, and each layer element's
+  actual computed `top`/`height`) - every single one's bottom edge was correctly bounded within
+  `MapFrameHeight` by construction. The border/button-spacing constants involved
+  (`BorderOutSize`, `BorderInSize`, `JumpMFOutDist`, `JumpMFInDist`, `NorthSouthHeight_MF`) are
+  all tiny (`BorderSize` totals 16px, `postop` 17px) - nowhere near large enough to be the cause.
+
+**Actual root cause**: `document.documentElement.scrollHeight` (734) exceeded even
+`MapFrameHeight` (727) itself, and exceeded the tallest individual layer's own computed bottom
+edge (`mapBack1`, 726) - meaning something was adding height *outside* the layer-positioning
+system entirely, not misplacing anything within it. Classic CSS gotcha: `<img>` is inline by
+default, so injected images get a few pixels of "phantom" space below them (line-box baseline
+alignment, reserved for a font descender) unless given `display:block` - and `scripts/layer.js`'s
+four layer-creation functions (`createMapLayer`, `createBackLayer1`, `createBackLayer2`,
+`createElseLayer`) all set `overflow:inherit` on their containing divs, not `overflow:hidden`, so
+that phantom space wasn't clipped and bled out past each div's declared box - accumulating across
+every image-containing layer into a real, page-level scrollbar.
+
+**Fix, two parts, both needed**:
+1. `overflow:inherit` → `overflow:hidden` in all four `layer.js` functions - robustly clips any
+   such overflow regardless of source.
+2. `display:block` added to every injected `<img>` in `map.html` (map image, all 4 pan buttons,
+   scale, status) - removes the baseline offset at the source. **Both were needed, in this
+   order**: `overflow:hidden` alone (tried first) fixed the scrollbar but then clipped the
+   North/South pan buttons almost entirely, since `NorthSouthHeight_MF` is only 8px tall - the
+   same few-pixel offset that was previously just leaking out as page overflow was now instead
+   consuming most of an 8px-tall box. East/West buttons use a taller `EastWestHeight_MF` and were
+   comparatively unaffected, which is why only the vertical (north/south) arrows visibly broke.
+
+Confirmed fixed via live browser dev tools console inspection (`documentElement.scrollHeight` no
+longer exceeds `clientHeight`), not just assumed from the code change.
+
 ## Known follow-ups (not actioned)
 - Status icon (`turnLayerVisible("Status")` target in `map.html`) restored zero-sized rather
   than fully removed — some interaction handlers call it unconditionally. Re-enable somewhere
@@ -556,16 +611,18 @@ Desktop, srv9, and srv10 all done consistently.
   (`meridian_2016`, `minisc_2019`, `opmplc_*`, `vmdvec_*`, `zoomstack_2026`) still srv9-only,
   decision on which (if any) more to promote not made yet - `dataDir` gate means nothing breaks
   either way in the meantime.
-- **`MapFrame` iframe height is a fixed `731px`, not dynamic** (`templates/center_view_map.tpl`)
-  — found 2026-07-31, once the newer mapsets became actually reachable. `NaviFrame`/`FormFrame`
-  already got resize-to-content JS in the 2026-07-30 pass (see the "Bitweaver-module vs.
-  raw-frameset dimension mismatch" section above), `MapFrame` never did. Most of today's mapsets
-  use `SIZE 500 1083` (vs. `iom`'s `SIZE 600 600`, which the 731px was presumably sized around) -
-  the taller image forces the iframe to scroll, which then clips/misaligns the pan-arrow overlay
-  controls (positioned by `nav.js`/`toolbar.js` relative to the iframe's own viewport, not the
-  full image). Proper fix needs each mapset's real `SIZE` added to the registry shape and emitted
-  via `script.php` (matching how `fullExtent` already works), then `MapFrame` resized the same
-  way `NaviFrame`/`FormFrame` are. Not done - logged only.
+- **`MapFrame` scrollbar/clipped-arrows — fixed 2026-08-01**, see its own section above. Turned
+  out to be an `overflow:inherit`/inline-`<img>`-baseline CSS bug in `layer.js`/`map.html`, not a
+  frame-sizing problem at all - `MapFrame`'s fixed `731px` (`templates/center_view_map.tpl`) was
+  correct all along and needs no dynamic resize, unlike what this entry originally assumed.
+- **Default `EXTENT` per mapset is still just "the whole of GB"** - genuinely open now that the
+  scrollbar bug is out of the way. `meridian`/`opmplc`/`vmdvec`/`zoomstack`/`minisc` all default
+  to the full elongated GB shape, which (per the `MAXSCALEDENOM` design - see "OS Data library"
+  section above) renders almost empty until zoomed in manually. A more useful default `EXTENT`
+  per mapset (and matching "Full Extent" button reset) - not necessarily square, just a smaller,
+  more populated starting view - was raised but deliberately deferred to keep this session's
+  scrollbar investigation scoped. MapServer's own rendering was confirmed correct throughout (see
+  above) - this would be a pure content/`EXTENT` decision, no code-mechanism changes needed.
 - **Raster mapsets are still wanted, not just superseded by vector** - `omlras_gtfc_gb`
   (OS Open Map Local, raster tiles) was set aside this session in favour of the `opmplc_2020`/
   `_2026` GeoPackage vector build, but that's a "simpler to build first" choice, not a "raster is
