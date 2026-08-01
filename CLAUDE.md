@@ -125,6 +125,13 @@ None of the 7 are dead leftovers — don't remove any without replacing this who
 Any future consolidation of `html/`+`theme/`+`modules/` into `templates/` needs to preserve this
 sequencing, not just move files 1:1.
 
+**Testing gotcha (2026-08-01)**: hitting the browser's plain reload/refresh button on this page
+mangles the choreography above (likely re-submitting/re-triggering steps out of the order they'd
+happen on a fresh navigation, given how much of this chain is auto-submitting forms and
+`document.location` chains rather than normal page loads) - symptoms look like a broken/stale
+render even with fresh code deployed. Reload cleanly via the address bar (click it, Enter) instead
+of the reload button when testing changes here.
+
 ## theme/ and modules/ — also fully reachable (file-location side-finding)
 Audited both (2026-07-29), same reachability-tracing approach as the `_blank.html` pass above:
 - **`theme/` (5 files)** — every file is directly referenced by `map/*.map` via MapServer's own
