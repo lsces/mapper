@@ -7,7 +7,7 @@ var m = parent.MapFrame;
 function createMapLayer(name, left, top, width, height, z, bgColor, visible, html) {
 	var div = m.document.createElement('div');
 	div.id = name;
-	div.style.cssText = 'position:absolute; overflow:inherit; left:' + left + 'px; top:' + top + 'px; width:' + width + 'px; height:' + height + 'px;' + 'z-index:' + z + ';' + 'background-color:' + bgColor + ';' + 'visibility:' + (visible ? 'visible;' : 'hidden;');
+	div.style.cssText = 'position:absolute; overflow:hidden; left:' + left + 'px; top:' + top + 'px; width:' + width + 'px; height:' + height + 'px;' + 'z-index:' + z + ';' + 'background-color:' + bgColor + ';' + 'visibility:' + (visible ? 'visible;' : 'hidden;');
 	div.innerHTML = html;
 	m.document.body.appendChild(div);
 	cLayer(name, 0, 0, width, height);
@@ -18,7 +18,7 @@ function createMapLayer(name, left, top, width, height, z, bgColor, visible, htm
 function createBackLayer1(name, left, top, width, height, z, bgColor, visible) {
 	var div = m.document.createElement('div');
 	div.id = name;
-	div.style.cssText = 'position:absolute; overflow:inherit; left:' + left + 'px; top:' + top + 'px; width:' + width + 'px; height:' + height + 'px;' + 'z-index:' + z + ';' + 'background-color:' + bgColor + ';' + 'visibility:' + (visible ? 'visible;' : 'hidden;');
+	div.style.cssText = 'position:absolute; overflow:hidden; left:' + left + 'px; top:' + top + 'px; width:' + width + 'px; height:' + height + 'px;' + 'z-index:' + z + ';' + 'background-color:' + bgColor + ';' + 'visibility:' + (visible ? 'visible;' : 'hidden;');
 	m.document.body.appendChild(div);
 }
 
@@ -27,7 +27,7 @@ function createBackLayer1(name, left, top, width, height, z, bgColor, visible) {
 function createBackLayer2(name, left, top, width, height, z, background, visible) {
 	var div = m.document.createElement('div');
 	div.id = name;
-	div.style.cssText = 'position:absolute; overflow:inherit; left:' + left + 'px; top:' + top + 'px; width:' + width + 'px; height:' + height + 'px;' + 'z-index:' + z + ';' + 'background-image: url(' + background + ');' + 'visibility:' + (visible ? 'visible;' : 'hidden;');
+	div.style.cssText = 'position:absolute; overflow:hidden; left:' + left + 'px; top:' + top + 'px; width:' + width + 'px; height:' + height + 'px;' + 'z-index:' + z + ';' + 'background-image: url(' + background + ');' + 'visibility:' + (visible ? 'visible;' : 'hidden;');
 	m.document.body.appendChild(div);
 }
 
@@ -36,7 +36,7 @@ function createBackLayer2(name, left, top, width, height, z, background, visible
 function createElseLayer(name, left, top, width, height, z, visible, html) {
 	var div = m.document.createElement('div');
 	div.id = name;
-	div.style.cssText = 'position:absolute; overflow:inherit; left:' + left + 'px; top:' + top + 'px; width:' + width + 'px; height:' + height + 'px;' + 'z-index:' + z + ';' + 'visibility:' + (visible ? 'visible;' : 'hidden;');
+	div.style.cssText = 'position:absolute; overflow:hidden; left:' + left + 'px; top:' + top + 'px; width:' + width + 'px; height:' + height + 'px;' + 'z-index:' + z + ';' + 'visibility:' + (visible ? 'visible;' : 'hidden;');
 	div.innerHTML = html;
 	m.document.body.appendChild(div);
 }

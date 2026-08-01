@@ -54,37 +54,41 @@ t.createBackLayer1("mapBack3", (t.posleft-RIS), (t.postop-RIS), t.BackWidth3, t.
 t.createBackLayer1("mapBack4", t.posleft, t.postop, t.MapWidth, t.MapHeight, 5, t.MapBackColor, true);
 
 //MapLayer: Layer for the MapImage
+//explicit width/height forces the image to fit its containing div exactly - without them the
+//img renders at whatever size mapserv actually returned, which can differ slightly from the
+//requested mapsize (MapServer sometimes adjusts to preserve the mapfile's own EXTENT aspect
+//ratio rather than force-fitting a mismatched box), causing a small overflow/scrollbar.
 var MapLayer = new String;
-MapLayer = '<img src="' + n.map + '" border="0">';
+MapLayer = '<img style="display:block;" src="' + n.map + '" width="' + t.MapWidth + '" height="' + t.MapHeight + '" border="0">';
 t.createMapLayer("mapimage", t.posleft, t.postop, t.MapWidth, t.MapHeight, 99, t.MapBackColor, true, MapLayer);
 
 //Layer for the directional pan buttons
 if (t.JumpTool_MF == true) { //(Variable from param.js)
 	//..."North"
 	var NorthLayer = new String;
-	NorthLayer = '<img src="' + t.NorthURL_MF + '" width="' + t.NorthSouthWidth_MF + '" height="' + t.NorthSouthHeight_MF +'" alt="' + t.toolName[1] + '" border="0" onmouseover="window.status=\' ' + t.toolName[1] + '\'" onmouseout="window.status=\'\'" onmousedown="parent.ScriptFrame.jump(\'north\')">';
+	NorthLayer = '<img style="display:block;" src="' + t.NorthURL_MF + '" width="' + t.NorthSouthWidth_MF + '" height="' + t.NorthSouthHeight_MF +'" alt="' + t.toolName[1] + '" border="0" onmouseover="window.status=\' ' + t.toolName[1] + '\'" onmouseout="window.status=\'\'" onmousedown="parent.ScriptFrame.jump(\'north\')">';
 	t.createElseLayer("North", t.northposleft, t.northpostop, t.NorthSouthWidth_MF, t.NorthSouthHeight_MF, 6, true, NorthLayer);
 						
 	//..."South"
 	var SouthLayer = new String;
-	SouthLayer = '<img src="' + t.SouthURL_MF + '" width="' + t.NorthSouthWidth_MF + '" height="' + t.NorthSouthHeight_MF +'" alt="' + t.toolName[2] + '" border="0" onmouseover="window.status=\' ' + t.toolName[2] + '\'" onmouseout="window.status=\'\'" onmousedown="parent.ScriptFrame.jump(\'south\')">';
+	SouthLayer = '<img style="display:block;" src="' + t.SouthURL_MF + '" width="' + t.NorthSouthWidth_MF + '" height="' + t.NorthSouthHeight_MF +'" alt="' + t.toolName[2] + '" border="0" onmouseover="window.status=\' ' + t.toolName[2] + '\'" onmouseout="window.status=\'\'" onmousedown="parent.ScriptFrame.jump(\'south\')">';
 	t.createElseLayer("South", t.southposleft, t.southpostop, t.NorthSouthWidth_MF, t.NorthSouthHeight_MF,7, true, SouthLayer);
 	
 	//..."East"
 	var EastLayer = new String;
-	EastLayer = '<img src="' + t.EastURL_MF + '" width="' + t.EastWestWidth_MF + '" height="' + t.EastWestHeight_MF +'" alt="' + t.toolName[3] + '" border="0" onmouseover="window.status=\' ' + t.toolName[3] + '\'" onmouseout="window.status=\'\'" onmousedown="parent.ScriptFrame.jump(\'east\')">';
+	EastLayer = '<img style="display:block;" src="' + t.EastURL_MF + '" width="' + t.EastWestWidth_MF + '" height="' + t.EastWestHeight_MF +'" alt="' + t.toolName[3] + '" border="0" onmouseover="window.status=\' ' + t.toolName[3] + '\'" onmouseout="window.status=\'\'" onmousedown="parent.ScriptFrame.jump(\'east\')">';
 	t.createElseLayer("East", t.eastposleft, t.eastpostop, t.EastWestWidth_MF, t.EastWestHeight_MF, 8, true, EastLayer);
 	
 	//..."West"
 	var WestLayer = new String;
-	WestLayer = '<img src="' + t.WestURL_MF + '" width="' + t.EastWestWidth_MF + '" height="' + t.EastWestHeight_MF +'" alt="' + t.toolName[4] + '" border="0" onmouseover="window.status=\' ' + t.toolName[4] + '\'" onmouseout="window.status=\'\'" onmousedown="parent.ScriptFrame.jump(\'west\')">';
+	WestLayer = '<img style="display:block;" src="' + t.WestURL_MF + '" width="' + t.EastWestWidth_MF + '" height="' + t.EastWestHeight_MF +'" alt="' + t.toolName[4] + '" border="0" onmouseover="window.status=\' ' + t.toolName[4] + '\'" onmouseout="window.status=\'\'" onmousedown="parent.ScriptFrame.jump(\'west\')">';
 	t.createElseLayer("West", t.westposleft, t.westpostop, t.EastWestWidth_MF, t.EastWestHeight_MF, 9, true, WestLayer);
 }
 
 //Scale-Layer: Layer for the Scalebar
 if (t.ShowScale == true) { //(Variable from param.js)
 	var ScaleLayer = new String;
-	ScaleLayer = '<img src="' + n.scale + '" border="0" alt="">';
+	ScaleLayer = '<img style="display:block;" src="' + n.scale + '" border="0" alt="">';
 	t.createElseLayer("Scale", t.scaleposleft, t.scalepostop, t.ScaleWidth, t.ScaleHeight, 102, true, ScaleLayer);
 }
 
@@ -94,7 +98,7 @@ if (t.ShowScale == true) { //(Variable from param.js)
 //new responsive frame size (was unobtrusive under the old fixed 600x600
 //frameset) - zeroing the size keeps it present but invisible either way.
 	var StatusLayer = new String;
-	StatusLayer = '<img src="' + t.StatusURL + '" width="0" height="0" border="0" alt="' + t.statusName + '">';
+	StatusLayer = '<img style="display:block;" src="' + t.StatusURL + '" width="0" height="0" border="0" alt="' + t.statusName + '">';
 	t.createElseLayer("Status", t.statusposleft, t.statuspostop, 0, 0, 101, false, StatusLayer);
 
 	//Graphics-Layer: Layer for the Zommbox and the crosshair
