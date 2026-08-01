@@ -348,11 +348,28 @@ the archive itself was never actually at risk. Fixed both scripts (`--exclude=ma
 **Recovery + relocation, same session**: pulled the 7 missing datasets back from srv9, and used
 the opportunity to move the whole OS-Data library on desktop off the root disk (81% full, 173G
 free) onto `/home/media1` (1.9TB free) — see the storage tiering policy above.
-`storage/mapper/<name>` on desktop is now symlinks into `/home/media1/OS-Data/<name>` for every
-dataset except `iom_years` (kept real — small, base package data, always needed). Symlink target
-names don't always match the mapfile-facing name (e.g. `storage/mapper/meridian_2016` →
-`/home/media1/OS-Data/merid2_essh_gb_2016`) — always check each mapfile's own `SHAPEPATH` line
-for the exact expected subfolder name rather than assuming it matches the archive's raw name.
+`lsces/storage/mapper/<name>` is symlinked into `/home/media1/OS-Data/<name>` for every dataset
+(every mapfile's `SHAPEPATH` hardcodes the `lsces` path, so these symlinks are functionally
+required, not just tidiness). `iom_years` is a real copy in *both* places — `lsces` needs it for
+`SHAPEPATH`, `media1` needs its own copy for `bitweaver5/storage/mapper` (below) to show it too.
+Symlink target names don't always match the mapfile-facing name (e.g.
+`lsces/storage/mapper/meridian_2016` → `/home/media1/OS-Data/merid2_essh_gb_2016`) — always check
+each mapfile's own `SHAPEPATH` line for the exact expected subfolder name.
+
+**`bitweaver5/storage/mapper` — corrected same session**: first pass wrongly symlinked this to
+`lsces/storage/mapper` (matching the existing `attachments`/`maps` pattern in `switch-site`, which
+never actually covers `mapper` at all — its own comment header only mentions the other two).
+Corrected per user direction: mapper's OS-Data library has effectively become independent of any
+one site, so `bitweaver5/storage/mapper` now symlinks **directly** to `/home/media1/OS-Data`
+instead — desktop's equivalent of srv9's `/media3/OS-Data`, going forward. `lsces/storage/mapper`
+stays as its own separate set of symlinks (required for `SHAPEPATH` resolution, see above) rather
+than being replaced by this new symlink. Also removed `bitweaver5/storage/maps.old-testfiles`
+(38MB, a stale pre-`switch-site` backup dir — confirmed via mtime that nothing in it postdated the
+live `maps` cache before deleting).
+
+**Known follow-up, not yet actioned**: `storage/maps/` (the generated tile cache) has no cleanup
+mechanism at all — 1,287 files / 68MB on `lsces` going back to March 2025, growing unbounded.
+Needs an actual periodic-cleanup script (age or size based), not just a one-off manual clear.
 
 ## Known follow-ups (not actioned)
 - Status icon (`turnLayerVisible("Status")` target in `map.html`) restored zero-sized rather
