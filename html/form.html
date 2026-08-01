@@ -35,21 +35,6 @@ function Load3() {
 	parent.MapFrame.document.location = t.mapURL;
 	parent.LegendFrame.document.location = t.legendURL;
 	resizeToContent();
-	resizeMapFrame();
-}
-
-//MapFrame's fixed width:99%/height:731px (center_view_map.tpl) assumed every mapset rendered
-//the same pixel size as the original single-mapset build. It doesn't - SIZE varies per mapset
-//(500x1083 for most, 600x600 for iom/test, 500x400 for over_gb) - so size the iframe to the
-//actual rendered dimensions, using MapServer's own [mapsize] WEB TEMPLATE field rather than
-//threading a new value through mapsets_inc.php/script.php for something MapServer already gives us.
-function resizeMapFrame() {
-	var mapFrameEl = parent.document.getElementById('MapFrame');
-	var parts = document.mapserv.mapsize.value.split(' ');
-	if (mapFrameEl && parts.length == 2) {
-		mapFrameEl.style.width = parts[0] + 'px';
-		mapFrameEl.style.height = parts[1] + 'px';
-	}
 }
 
 //the reference thumbnail's real pixel shape follows the mapset's own
