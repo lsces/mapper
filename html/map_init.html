@@ -18,6 +18,7 @@ for (i=0;i<t.commonLayerList.length;i++) {
 }
 initHtml += '<input type="hidden" name="zoomsize" value="' + t.zoomsize + '">';
 initHtml += '<input type="hidden" name="mapsize" value="' + t.MapWidth + ' ' + t.MapHeight + '">';
+initHtml += '<input type="hidden" name="mapext" value="' + t.computeCoverExtent(t.fullExtent, t.MapWidth, t.MapHeight) + '">';
 initHtml += '</form>';
 document.body.insertAdjacentHTML('beforeend', initHtml);
 parent.FormFrame.document.init.submit();

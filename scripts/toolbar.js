@@ -1,5 +1,27 @@
 //Toolbar functions
 
+// Computes a "cover"-style fit: fills the frame completely along whichever
+// axis needs the smaller scale (units per pixel), cropping and centering
+// the other axis. This is the opposite of MapServer's own default extent
+// adjustment (which expands the *looser* axis instead, leaving blank
+// margins around a small, real-content island) - used for "Full Extent"
+// and the initial map load so both land on a fully-populated view rather
+// than a mostly-empty whole-mapset extent. extentStr is "minx miny maxx maxy".
+function computeCoverExtent(extentStr, frameWidth, frameHeight) {
+	var e = extentStr.split(" ");
+	var minx = parseFloat(e[0]), miny = parseFloat(e[1]);
+	var maxx = parseFloat(e[2]), maxy = parseFloat(e[3]);
+
+	var scale = Math.min((maxx - minx) / frameWidth, (maxy - miny) / frameHeight);
+	var newWidth = frameWidth * scale;
+	var newHeight = frameHeight * scale;
+	var centerX = (minx + maxx) / 2;
+	var centerY = (miny + maxy) / 2;
+
+	return (centerX - newWidth / 2) + " " + (centerY - newHeight / 2) + " " +
+		(centerX + newWidth / 2) + " " + (centerY + newHeight / 2);
+}
+
 //check if window is already open
 //set to false on window open
 var tooglelink = true;
@@ -121,7 +143,7 @@ function setTool(selectedTool) {
 		case "fullextent":
 			turnLayerVisible("Status");
 			parent.ScriptFrame.mode = "browse";
-			parent.ScriptFrame.mapext = fullExtent;
+			parent.ScriptFrame.mapext = computeCoverExtent(fullExtent, MapWidth, MapHeight);
 			if (parent.ScriptFrame.imgbox != "-1 -1 -1 -1") {
 				parent.ScriptFrame.imgbox = "-1 -1 -1 -1";
 			}
