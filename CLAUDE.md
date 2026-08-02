@@ -374,9 +374,59 @@ than being replaced by this new symlink. Also removed `bitweaver5/storage/maps.o
 (38MB, a stale pre-`switch-site` backup dir — confirmed via mtime that nothing in it postdated the
 live `maps` cache before deleting).
 
-**Known follow-up, not yet actioned**: `storage/maps/` (the generated tile cache) has no cleanup
-mechanism at all — 1,287 files / 68MB on `lsces` going back to March 2025, growing unbounded.
-Needs an actual periodic-cleanup script (age or size based), not just a one-off manual clear.
+**Fixed same session**: `storage/maps/` cleanup — `/etc/webstack/cron.daily/mapper-maps-cleanup`
+added, deletes files older than 2 days (each render is uniquely-named and never revisited, so
+short retention is safe). Deployed to both servers.
+
+## Extent audit fixes + two new raster mapsets, 2026-08-02
+Finished the per-mapset `extent` audit (cover-fit section above): `opmplc_2020`/`_2026` and
+`vmdvec_2020` share a real `0 0 660000 1230000` grid-envelope box (confirmed via `ogrinfo`/
+`gdalinfo` against the actual data, not the meridian placeholder they'd been copy-pasted from);
+`vmdvec_2026` and `zoomstack_2026` each have their own tighter real coastline-hugging box. Fixed
+in both `mapper_mapsets.php` and each mapfile's own `EXTENT` directive, deployed to both servers.
+
+**`ras250_2026`** — OS 1:250,000 Colour Raster. Simple case: 56 tiles, clean embedded GeoTIFF
+georeferencing (no worldfiles), `gdaltindex` TILEINDEX built in seconds. One gotcha: tile paths
+in a TILEINDEX resolve relative to the mapfile's `SHAPEPATH`, not relative to wherever the `.shp`
+itself lives — the index needs to sit alongside the tiles (or the paths need the subfolder baked
+in, see `omlras_gb` below) for a bare filename like `HP.tif` to resolve.
+
+Also added **`IOM250k2026`** to the existing `iom_years` historic layer set, mosaicked+clipped
+from two of `ras250_2026`'s tiles (`NX`+`SC`, since the IOM box straddles a tile boundary) down to
+the same extent the other 5 historic layers use — nearest-neighbour resampling (not bilinear,
+which blends palette-index values into garbage on this kind of indexed raster). Named
+`IOM250k2026`, not a same-series `IOM25000b`, since it's a different scale to the existing
+`IOM25000a` (which is genuinely 1:25,000, ~2016) — that naming collision would have been
+confusing. Both layer titles tidied to a consistent `25k`/`250k` style. Along the way, corrected
+`iom_years`' own storage: it had been left as a real directory directly under
+`lsces/storage/mapper` rather than following the symlink-to-`/home/media1/OS-Data` pattern every
+other dataset uses — fixed to match.
+
+**`omlras_gb`** — OS Open Map Local raster, both 2020/2026 editions as mutually-exclusive layers
+in one mapset (matches the `over_gb` pattern). 10,591 tiles per edition, 1m/pixel — genuinely
+detailed (individual buildings, field boundaries visible). The `gdaltindex` build itself was a
+non-issue (~3-4 minutes, mostly I/O, file count doesn't meaningfully matter to it) - the real
+finding was a **whole-GB render timing out (2min+)**: every one of the 10,591 tiles intersects a
+whole-GB view and must be individually opened, unlike vector layers which can be scale-culled by
+feature density - there's no raster equivalent of `MAXSCALEDENOM`-based culling for a TILEINDEX.
+Default `extent` set to a small ~15km box instead (renders in <1s) - centred on Evesham, matching
+the site's existing contact-us map location (OSGB grid ref `402715,243906`, converted to WGS84
+`52.093503N -1.961776W` via `cs2cs`). Both editions' tile paths needed the full
+`omlras_gtfc_gb_202X/data/` prefix baked into the tileindex (built by running `gdaltindex` from
+the `storage/mapper` level, not from within each dataset's own `data/` folder) since `SHAPEPATH`
+is shared across both editions in one mapfile - the ras250 shortcut (index living alongside a
+single edition's tiles) doesn't work when two editions share one `SHAPEPATH`.
+
+Verified `mode=browse` end-to-end (not just `mode=map`) as the `nginx` user for both new mapsets -
+worth doing given `mode=map` never exercises `IMAGEPATH`/`WEB TEMPLATE`/`REFERENCE` at all (same
+lesson as the meridian deploy bug). Confirmed the `REFERENCE`/Overview thumbnail is unaffected by
+tile count regardless of mapset - it draws from the shared static `gb_overview.png` backdrop, not
+a live re-render of whatever raster layer is active.
+
+**Deployed to srv9 only** (data + tileindexes pushed, symlinks created, webstack config pulled,
+verified live) - `omlras_gb`'s 30GB (both editions) not pushed to srv10, matching the established
+"srv10 only gets cherry-picked/proven datasets" policy from the storage tiering section above.
+`ras250_2026`/`IOM250k2026` (much smaller) deployed to both.
 
 ## Known follow-ups (not actioned)
 - Status icon (`turnLayerVisible("Status")` target in `map.html`) restored zero-sized rather
@@ -399,12 +449,9 @@ Needs an actual periodic-cleanup script (age or size based), not just a one-off 
   still srv9-only — decision on which (if any) more to promote not made yet, `dataDir` gate means
   nothing breaks either way in the meantime.
 - Per-mapset `extent` values for `opmplc_2020`/`_2026`, `vmdvec_2020`/`_2026`, `zoomstack_2026` —
-  still pending verification/correction, see the cover-fit section above.
-- Raster mapsets are still wanted, not just superseded by vector — `omlras_gtfc_gb`'s TILEINDEX
-  approach (10,591 tiles, `gdaltindex` already proven working for it) is still the right path
-  whenever it's picked back up, not dead, just not next. Raster renders suit some uses (exact
-  visual fidelity to the original cartographic product) better than a styled vector reconstruction
-  ever will.
+  **fixed 2026-08-02**, see the new raster/extent section below.
+- `omlras_gtfc_gb` raster mapset — **built 2026-08-02**, see below. `pancon_gb_2016` (DXF
+  contours) is the remaining not-yet-built raster candidate.
 
 See `[[project_mapper_osrm_revival]]` memory for the full session-by-session history (wrong
 turns included) behind the choices above.
