@@ -65,6 +65,13 @@ needs to preserve this sequencing, not just move files 1:1.
 re-triggering auto-submitting forms out of order) — symptoms look like a broken/stale render even
 with fresh code deployed. Reload via the address bar (click it, Enter) instead when testing here.
 
+**Caching gotcha (2026-08-02)**: after deploying, `.php`-served changes (e.g. `script.php`,
+`display_map.php`) show up cleanly on next load — but changes to plain `.html` files (`map.html`,
+`navi.html`, etc, served as static files rather than through PHP) need a hard browser cache wipe
+to actually show, a normal reload isn't enough. Worth remembering when a deployed fix "isn't
+showing" — check whether the changed file is `.php` or `.html` before assuming the deploy itself
+failed.
+
 ## theme/ and modules/ — also fully reachable
 - **`theme/` (5 files)** — every file is directly referenced by `map/*.map` via MapServer's own
   `TEMPLATE`/`HEADER`/`FOOTER`/`EMPTY` directives, genuinely can't be ordinary Smarty `.tpl`.
