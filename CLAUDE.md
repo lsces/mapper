@@ -286,6 +286,24 @@ always check the mapfile's own `SHAPEPATH` for the exact expected subfolder name
 `/etc/webstack/cron.daily/mapper-maps-cleanup`, deletes files older than 2 days (each render is
 uniquely-named and never revisited, so short retention is safe).
 
+## srv9 storage/mapper — meridian_2014/iom_years converted to symlinks, 2026-08-03
+Found two lingering physical directories under srv9's `storage/mapper/` — `meridian_2014` and
+`iom_years` — left over from before the archive-symlink pattern above was established; every
+other mapset there was already correctly symlinked, and desktop's `storage/mapper` was already
+symlinks throughout. Verified byte-identical (`diff -rq`/`md5sum`) before touching anything:
+- `meridian_2014` duplicated data already archived under `/media3/OS-Data/merid2_essh_gb_2014`
+  (same naming-mismatch pattern as `meridian_2016` above — accepted as-is, not worth unifying
+  across the whole set) — just needed the physical copy removed and a symlink added.
+- `iom_years` had no archive copy on srv9 at all, only on desktop's `/home/media1/OS-Data/`.
+  Copied into **both** `/media3/OS-Data/` and `/media4/OS-Data/` (srv9's two independent OS-Data
+  backup disks — confirmed genuinely separate via `df`/`mount`, not one symlinked to the other)
+  for the same redundancy the meridian sets already had, verified both copies byte-identical,
+  then symlinked `storage/mapper/iom_years` → `/media3/OS-Data/iom_years`.
+
+srv9's `storage/mapper/` now matches desktop exactly — symlinks throughout, no physical
+duplicates. Not replicated to srv10 — srv10 has no `/media3`/`/media4` (single-disk hardware,
+real copies not symlinks there, per the srv10 cherry-pick list below).
+
 ## Reference thumbnails (`gb_overview.png` + `refmap_IOM1880.png`), 2026-08-02
 Both resized 200x160/100x109 → 320x320 and rebuilt for legibility (old ones were downscaled
 detailed rasters, illegible at thumbnail size). `gb_overview.png`: meridian's `coast_ln_polyline`
@@ -302,7 +320,100 @@ together (`-te` computed via `min`/`max` scale-fit math) so it pads instead. The
 padding then defaults to black (GDAL's nodata-fills-0 behaviour) unless you add `-dstalpha` and
 composite onto a white background in a second pass.
 
+## OSM-derived mapsets (`osm_iom`, `osm_gb`) — built 2026-08-03
+First mapsets built from raw OpenStreetMap data rather than OS products. Source is the
+self-hosted `britain-and-ireland-latest.osm.pbf` on srv9 (`/srv/osm`, kept current by
+`/etc/webstack/cron.daily/osm-update` for the IOM clip only — **`osm_gb` is a one-off build, not
+in the nightly cron**, per explicit decision not to rebuild the whole-GB gpkg nightly). GDAL's
+OSM driver doesn't pre-split by theme like the OS vector products do — it exports 5 generic
+geometry-type layers (`points`/`lines`/`multilinestrings`/`multipolygons`/`other_relations`) with
+real OSM tags as columns, so themed layers (`Water`, `Woodland`, `Building`, `Waterway`, `Road`,
+`Place`) are `FILTER` expressions against those tag columns rather than separate source layers.
+`osm_gb.map` reused `osm_iom.map`'s exact layer/filter/style structure, plus the MAXSCALEDENOM
+tiers already proven safe at GB scale by `opmplc_2020.map`/`vmdvec_2020.map` (Water 300000,
+Woodland 300000, Road 150000, Building 20000, Place 200000) — whole-GB render with all layers
+came back in 0.3-0.5s, no smear/timeout issues.
+
+**Coastline layer, both mapsets**: OS vector products don't carry real coastline geometry, so
+this uses the OSM `water-polygons-split-4326` extract (osmdata.openstreetmap.de) instead —
+downloaded, clipped to the mapset's bbox in EPSG:4326, reprojected to EPSG:27700 via `ogr2ogr
+-clipsrc`, appended as its own `water_polygons` GeoPackage layer, styled as a filled polygon (not
+a line, unlike `meridian`'s `coast_ln_polyline`) so land shows as a natural gap in a solid sea
+fill.
+
+**Tile-seam artifact, found + fixed for GB**: the water-polygons dataset is genuinely split into
+a world-wide tile grid (hence the filename) — invisible in most viewers but our `Coastline`
+layer's `OUTLINECOLOR` styling drew every tile-internal seam as a visible line, not just real
+coastlines. Barely noticeable for IOM (small bbox, touches only 1-2 tiles) but a full checkerboard
+across the sea at GB scale (323 raw tile features). Fixed at the data level, not by hiding the
+outline: `ogr2ogr -dialect sqlite -sql "SELECT ST_Union(geom) AS geom FROM water_polygons"`
+dissolves all tiles into one contiguous MultiPolygon (1 feature) before it ever reaches the
+mapfile — real coastline boundaries stay outlined, tile seams vanish because they're no longer
+separate polygon edges. ~1.5 min for GB's 323 features.
+
+**Reference thumbnails, both mapsets** (`refmap_iom_osm.png`, `refmap_gb_osm.png`, in the public
+`mapper` repo's `graphics/`): rendered via classic CGI `mode=map` (not WMS — `osm_iom.map`/
+`osm_gb.map` have no `wms_enable_request` metadata, confirmed via a real `ServiceException` before
+switching approach) with only the `Coastline` layer active, at the mapset's `REFERENCE` `SIZE`/
+`EXTENT`. This leaves the true void — outside the clipped data extent, and the disconnected
+white island-interior region — both flat white, indistinguishable at a glance. Filled the void
+with the sea's own fill colour via a **flood-fill from all four image corners** (`PIL.ImageDraw.
+floodfill`, same idea as an old bucket-fill tool) — works because the true void is one region
+contiguous with the image edges, while land is always a separate, disconnected white region
+enclosed by the coastline outline, so the flood never crosses into it. Leftover thin diagonal
+lines where the bbox clip cuts across open sea (visible on both, more so IOM) were deliberately
+left alone — confirmed with the user these read fine as "projection lines", not worth chasing
+further.
+
+**GROUP/NAME collision, found + fixed**: `Coastline` and `Water` both started out in `GROUP
+"Water"` — the same string as the `Water` layer's own `NAME`. MapServer's CGI `layers=` parameter
+matches against both layer names *and* group names, so any request that included `Water` (to keep
+the Water layer on) silently reactivated the whole group, `Coastline` included, regardless of
+Coastline's own toggle state — switching "Sea" off only ever worked if "Lakes / water bodies" was
+switched off too. Confirmed by direct `mode=map` testing (`layers=Water` alone still rendered the
+full sea fill). Fixed by renaming the group to `GROUP "WaterFeatures"` in both mapfiles (also
+covers `Waterway`, third member of the same group) — re-verified `layers=Water` alone now renders
+blank and `layers=Coastline` alone still renders the sea correctly. Audited every other mapfile in
+`/etc/webstack/mapserver/` for the same layer-name/group-name collision pattern — none found
+elsewhere, isolated to these two new mapfiles. **Worth checking for on any future mapfile that
+gives a layer the same name as its own group.**
+
+**Registry gotcha, hit for `osm_iom`**: adding the `Coastline` layer to the mapfile alone wasn't
+enough to make it appear in the live interactive viewer — `mapper_mapsets.php`'s per-mapset
+`layerList`/`layerAlias`/`layerVisible` arrays are what `map_init.html` actually submits on
+initial load, so a layer missing from the registry never gets requested even though direct
+`mode=map` testing (which takes an explicit `layers=` param) renders it fine. Caught before it
+shipped only because `osm_gb`'s registry entry was written from scratch and prompted a check of
+`osm_iom`'s existing one. **Always update the registry in the same pass as any mapfile layer
+change** — `mode=map` testing alone can't catch this, same class of gotcha as the existing
+`mode=map` vs `mode=browse` note above.
+
+Data layout: `storage/mapper/osm_iom` and `storage/mapper/osm_gb` both symlink straight to
+`/srv/osm` (not per-dataset subfolders like the OS Data library) since both mapsets' `gpkg`s
+already live there together with the shared PBF source. `gb_osm.gpkg` is ~18.6GB (points/lines/
+multilinestrings/multipolygons/other_relations, unfiltered — filtering happens at render time via
+`FILTER`, not at build time) — took ~50 min end-to-end on srv9 (6 cores), most of it in the
+`multipolygons` layer (relation assembly for buildings/woodland/water areas). Deployed to
+**srv9 only** — matches the "srv10 only gets kept/cherry-picked data" policy, and this hasn't
+been proven yet.
+
 ## Known follow-ups (not actioned)
+- OSM road-class colour styling (blue motorways / green primary / red A roads, etc, matching a
+  classic OS/road-atlas look) — flagged by the user as "the next logical step" while reviewing
+  `osm_gb`, explicitly *not* wanted immediately. Current `Road` layer is one FILTER/one colour,
+  same as `osm_iom`. Needs OSM `highway` tag value mapped to a colour/width table, ideally with
+  its own MAXSCALEDENOM tiers per class (motorway visible further out than residential) — same
+  pattern as `opmplc`/`vmdvec`'s road-class layers. Do not action until asked.
+- `osm_gb` not yet promoted to srv10 — one-off build, unproven, srv9-only per the existing
+  cherry-pick policy (see the srv10 list below).
+- Neither the OS-derived vector mapsets (`meridian`, `opmplc`, `vmdvec`) nor plain OSM vectors
+  render well as-is at a glance, per direct user feedback while reviewing `osm_gb` — the user's
+  actual preference leans toward the raster OS products (`minisc`, `ras250`, `omlras_gb`) for
+  general viewing, with OSM's role being the "build my own styled map" experiment above, not a
+  replacement for the OS rasters.
+- 10-20-year-old OSM planet/regional history dumps aren't readily available (lamented, not
+  actioned) — relevant if historic-snapshot OSM coverage is ever wanted alongside the OS
+  historic editions already kept per `[[feedback_mapper_historic_no_replace]]`.
 - Maughold Head's promontory tip is clipped by the historic IOM raster source data itself
   (found while building the new IOM reference thumbnail) — same class of issue as
   `[[project_iom_raster_whitespace]]`, the original scans were cropped slightly too tight on the
