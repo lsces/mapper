@@ -490,6 +490,16 @@ itself changed to loop over both `/media3/osm` and `/media4/osm`.
   and deployed to srv9, 2026-08-04. 2020 dump still downloading — same build pattern once it
   lands, alongside the OS historic editions already kept per
   `[[feedback_mapper_historic_no_replace]]`.
+- **OSM tile server, floated as the next step after the 2020 dump lands (2026-08-04), not
+  decided.** Would be a different order of workload from anything built so far — everything to
+  date (`osm_gb`/`osm_iom` included) is on-demand WMS-style rendering straight off a GeoPackage
+  via MapServer/GDAL, no persistent daemon or pre-generated cache. A real slippy-map tile server
+  (`osm2pgsql`→PostGIS import, `renderd`/`mod_tile`, on-disk tile cache across zoom levels) is
+  much heavier on RAM (import) and disk (cache), and srv9 is the weaker, older box (see
+  `[[project_srv9_hardware]]` — 6-thread FX-6300, 31GB RAM, already flagged as thermally
+  marginal). Worth prototyping GB/IOM-scoped (not planet-wide) on desktop first, given desktop's
+  already-proven speed advantage for the 2012 gpkg builds, before committing srv9 hardware to a
+  persistent service. Do not action until asked.
 - Maughold Head's promontory tip is clipped by the historic IOM raster source data itself
   (found while building the new IOM reference thumbnail) — same class of issue as
   `[[project_iom_raster_whitespace]]`, the original scans were cropped slightly too tight on the
