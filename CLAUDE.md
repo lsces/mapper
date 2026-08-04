@@ -500,6 +500,19 @@ itself changed to loop over both `/media3/osm` and `/media4/osm`.
   marginal). Worth prototyping GB/IOM-scoped (not planet-wide) on desktop first, given desktop's
   already-proven speed advantage for the 2012 gpkg builds, before committing srv9 hardware to a
   persistent service. Do not action until asked.
+
+## OSM tile server prototype — built + wired into the viewer, 2026-08-04
+Full slippy-map tile server built on desktop (PostGIS/osm2pgsql/Mapnik/renderd, OS-atlas road
+colours, custom PHP metatile reader since this stack is nginx-only with no Apache/mod_tile) and
+wired into the existing viewer as a new standalone mapset, `osm_tiles_iom` — confirmed working
+live by the user, not just via CGI tests. Full build detail, real measured tile-cache sizes,
+several real bugs found+fixed along the way (a `render_list --all` bbox coverage gap, a desktop
+vhost-root symlink gotcha), and the road-line-width-at-thumbnail-scale issue (accepted as-is, not
+reused for other IOM mapsets) — all in `[[project_osm_tile_server]]` memory, not duplicated here
+since this is infrastructure-adjacent rather than package code per se.
+
+**Session end 2026-08-04**: everything committed (webstack + mapper package repos), desktop-only
+so far — deliberately not pushed to srv9/srv10 yet, picking back up next session.
 - Maughold Head's promontory tip is clipped by the historic IOM raster source data itself
   (found while building the new IOM reference thumbnail) — same class of issue as
   `[[project_iom_raster_whitespace]]`, the original scans were cropped slightly too tight on the
