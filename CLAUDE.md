@@ -397,6 +397,35 @@ multilinestrings/multipolygons/other_relations, unfiltered — filtering happens
 **srv9 only** — matches the "srv10 only gets kept/cherry-picked data" policy, and this hasn't
 been proven yet.
 
+## OSM historic planet dumps — found + first one acquired, 2026-08-03/04
+The "not readily available" lament below (now out of date, kept struck-through context in the
+follow-up entry) turned out to be wrong — the Internet Archive hosts historic whole-world OSM
+planet dumps via torrent back to 2012, not just OSM's own current-data infrastructure. Full
+source detail in `[[reference_osm_historic_dumps]]` memory.
+
+`osm-planet-20120912` (24GB, whole-world, bzip2 OSM XML — not PBF) downloaded, MD5-verified
+against its own checksum file, and pushed to **both** `/media3/OSM-Historic/` and
+`/media4/OSM-Historic/` on srv9 (matching the OS-Data archive's dual-disk redundancy pattern) —
+each copy independently MD5-verified after transfer. A GB-sized clip was pulled out on desktop
+via `osmium extract -b -8.7,49.8,2.0,61.0` straight from the `.bz2` (osmium reads bzip2 XML
+natively, no separate decompress step) — took ~2h20m end-to-end (bz2 XML decompression is far
+slower than the PBF extracts used for `osm_iom`/`osm_gb`'s current-day source), landed at
+`/home/media1/OSM-Historic/gb-120912.osm.pbf` (516MB, verified via `osmium fileinfo`). Nothing
+built from it yet — next step would be the same `ogr2ogr`-into-`gpkg` treatment `osm_gb.map` got,
+producing a genuine 2012-vintage historic mapset once there's a reason to prioritise it.
+
+A second, much larger dump (`osm-planet-20200914`, 101GB) was found on the same source and
+started downloading via torrent 2026-08-03 (multi-day ETA) — would bridge the gap between the
+2012 snapshot and current data. Not yet landed.
+
+**Found + fixed in passing**: auditing srv9's `/media3` vs `/media4` for drift (prompted by the
+Films directory needing a manual re-sync) turned up two mapper-relevant gaps — `OS-Data
+opmplc_gpkg_gb_2026` (7.4GB) had never been copied to media4 at all, and
+`/etc/webstack/cron.daily/osm-update`'s own nightly bulk-archive mirror step
+(`rsync ... /media3/osm/`) only ever targeted media3, so it would have kept drifting every night
+indefinitely. Both fixed: the dataset copied across (verified identical), and the cron script
+itself changed to loop over both `/media3/osm` and `/media4/osm`.
+
 ## Known follow-ups (not actioned)
 - OSM road-class colour styling (blue motorways / green primary / red A roads, etc, matching a
   classic OS/road-atlas look) — flagged by the user as "the next logical step" while reviewing
@@ -411,9 +440,11 @@ been proven yet.
   actual preference leans toward the raster OS products (`minisc`, `ras250`, `omlras_gb`) for
   general viewing, with OSM's role being the "build my own styled map" experiment above, not a
   replacement for the OS rasters.
-- 10-20-year-old OSM planet/regional history dumps aren't readily available (lamented, not
-  actioned) — relevant if historic-snapshot OSM coverage is ever wanted alongside the OS
-  historic editions already kept per `[[feedback_mapper_historic_no_replace]]`.
+- ~~10-20-year-old OSM planet/regional history dumps aren't readily available~~ — turned out
+  wrong, see "OSM historic planet dumps" above. First one (2012) acquired, a second (2020)
+  downloading. Building an actual historic mapset from either is still not actioned — relevant
+  once there's a reason to prioritise it, alongside the OS historic editions already kept per
+  `[[feedback_mapper_historic_no_replace]]`.
 - Maughold Head's promontory tip is clipped by the historic IOM raster source data itself
   (found while building the new IOM reference thumbnail) — same class of issue as
   `[[project_iom_raster_whitespace]]`, the original scans were cropped slightly too tight on the
