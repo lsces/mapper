@@ -418,6 +418,45 @@ A second, much larger dump (`osm-planet-20200914`, 101GB) was found on the same 
 started downloading via torrent 2026-08-03 (multi-day ETA) — would bridge the gap between the
 2012 snapshot and current data. Not yet landed.
 
+**`osm_gb_2012`/`osm_iom_2012` mapsets built + deployed to srv9, 2026-08-04.** Same recipe as
+`osm_gb`/`osm_iom`: `ogr2ogr -t_srs EPSG:27700` straight into a gpkg (5 generic OSM layers,
+themed via `FILTER`), Coastline layer pointed at the *existing* `gb_water_polygons.gpkg`/
+`iom_osm.gpkg` water_polygons data via an absolute `CONNECTION` path rather than rebuilt — real
+coastlines don't move meaningfully in 12 years, confirmed as the right call before building
+anything. Same reasoning applied to the reference thumbnails: `REFERENCE IMAGE` in both new
+mapfiles points directly at the existing `refmap_gb_osm.png`/`refmap_iom_osm.png` rather than
+generating duplicates, since a coastline-only 2012 render would be pixel-identical.
+
+Build ran on **desktop, not srv9** — deliberately, since desktop (Ryzen 5600G, 12 threads,
+62GB RAM) is meaningfully faster than srv9 (FX-6300, 6 threads, 31GB, older Piledriver-era
+core): the IOM extract was near-instant and the full GB gpkg (2.4GB, 1.3M points/3.16M
+lines/2.38M multipolygons) took 2m22s, vs. ~50min for the much bigger current-day `osm_gb` build
+on srv9. IOM clip pulled straight from the already-downloaded `gb-120912.osm.pbf` via `osmium
+extract` with the same `IOM_BBOX` as `osm-update`'s cron script (fast — PBF is a far cheaper
+source than re-extracting from the original 24GB bz2 XML dump). Both finished gpkgs rsynced to
+srv9's `/srv/osm` (same shared dir `osm_gb`/`osm_iom` already symlink to) and checksum-verified.
+New `storage/mapper/osm_gb_2012`/`osm_iom_2012` symlinks added on srv9 alongside the existing
+ones; `mapper_mapsets.php` (webstack repo) got two new registry entries, `dataDir`-gated the same
+way. Mapfiles committed to the **private `/etc/webstack` repo** (not the public mapper package
+repo) like every other private mapfile, pushed to the bare repo and pulled on srv9.
+
+Verified live end-to-end, not just via direct `mode=map` CGI: `mode=browse` (the real deploy
+path) rendered correctly for both, and — catching the exact "registry gotcha" flagged above for
+`osm_iom` — confirmed the merged `mapper_mapsets.php` registry actually reaches `script.php`'s
+resolved output (`layerList`/`layerAlias`) for both new mapset keys, using an authenticated
+`users_cnxn` cookie-insert session (see the top-level CLAUDE.md's testing-without-a-password
+recipe; use `user_id = 3`, not `1` — see `[[reference_firebird_isql]]`). First attempt at this
+falsely looked broken — both new mapsets fell back to the default registry entry — until DNS was
+checked: `lsces.uk` resolves to production (srv10), so a plain `curl https://lsces.uk/...` run
+from srv9 itself silently tests the wrong box. Fixed with `curl --resolve
+lsces.uk:443:127.0.0.1`; see `[[reference_srv9_web_testing]]`.
+
+Deployed to **srv9 only** — matches the existing cherry-pick policy, not promoted to srv10 yet.
+`osm_iom_2012` was requested explicitly alongside `osm_gb_2012` (both built in the same pass, not
+sequenced). Follow-up, not yet actioned: user flagged the reference thumbnails as needing "more
+detail at some point" — current ones are coastline-only silhouettes with no place/road context,
+adequate for now but a real limitation once more mapsets accumulate.
+
 **Found + fixed in passing**: auditing srv9's `/media3` vs `/media4` for drift (prompted by the
 Films directory needing a manual re-sync) turned up two mapper-relevant gaps — `OS-Data
 opmplc_gpkg_gb_2026` (7.4GB) had never been copied to media4 at all, and
@@ -433,17 +472,23 @@ itself changed to loop over both `/media3/osm` and `/media4/osm`.
   same as `osm_iom`. Needs OSM `highway` tag value mapped to a colour/width table, ideally with
   its own MAXSCALEDENOM tiers per class (motorway visible further out than residential) — same
   pattern as `opmplc`/`vmdvec`'s road-class layers. Do not action until asked.
-- `osm_gb` not yet promoted to srv10 — one-off build, unproven, srv9-only per the existing
-  cherry-pick policy (see the srv10 list below).
+- `osm_gb`/`osm_iom` and the new `osm_gb_2012`/`osm_iom_2012` not yet promoted to srv10 —
+  one-off/unproven builds, srv9-only per the existing cherry-pick policy (see the srv10 list
+  below).
+- 2012 reference thumbnails (reusing `refmap_gb_osm.png`/`refmap_iom_osm.png`) are coastline-only
+  silhouettes with no place/road context — flagged by the user as needing "more detail at some
+  point". Fine for now, worth revisiting once more historic-edition mapsets accumulate.
+- 2020 OSM planet dump (`osm-planet-20200914`) still downloading — once landed, same GB+IOM
+  extract/build/deploy pattern as the 2012 mapsets above.
 - Neither the OS-derived vector mapsets (`meridian`, `opmplc`, `vmdvec`) nor plain OSM vectors
   render well as-is at a glance, per direct user feedback while reviewing `osm_gb` — the user's
   actual preference leans toward the raster OS products (`minisc`, `ras250`, `omlras_gb`) for
   general viewing, with OSM's role being the "build my own styled map" experiment above, not a
   replacement for the OS rasters.
 - ~~10-20-year-old OSM planet/regional history dumps aren't readily available~~ — turned out
-  wrong, see "OSM historic planet dumps" above. First one (2012) acquired, a second (2020)
-  downloading. Building an actual historic mapset from either is still not actioned — relevant
-  once there's a reason to prioritise it, alongside the OS historic editions already kept per
+  wrong, see "OSM historic planet dumps" above. 2012 mapsets (`osm_gb_2012`/`osm_iom_2012`) built
+  and deployed to srv9, 2026-08-04. 2020 dump still downloading — same build pattern once it
+  lands, alongside the OS historic editions already kept per
   `[[feedback_mapper_historic_no_replace]]`.
 - Maughold Head's promontory tip is clipped by the historic IOM raster source data itself
   (found while building the new IOM reference thumbnail) — same class of issue as
