@@ -25,11 +25,34 @@
 	var layersConfig = {$layersConfigJson nofilter};
 	var mapBounds = {$mapBoundsJson nofilter};
 
-	// cover-fit, same idea as the old MapFrame's computeCoverExtent() (scripts/toolbar.js) -
-	// zoom in past the plain contain-fit level just far enough that the extent fills the frame
-	// on both axes, cropping the looser one, instead of leaving blank letterbox margins.
+	// Fit to width, then centre vertically - matches the old display_map.php's look (full width,
+	// vertically centred) more closely than either a 2-axis cover-fit (too zoomed in on a wide
+	// full-bleed viewport - it was cropping more of the island out the wider the screen) or a
+	// plain contain-fit (leaves blank side margins whenever height is the binding axis). Zoom is
+	// picked purely from matching the extent's real-world width to the container's pixel width;
+	// height is never part of the decision.
+	function fitBoundsWidth( map, bounds ) {
+		// padded 0.5 each side (doubles both width and height) so the initial view shows some
+		// sea around the island rather than the coastline sitting right on the frame edge - same
+		// idea as the old REFERENCE image's own padded EXTENT.
+		bounds = L.latLngBounds( bounds ).pad( 0.5 );
+		var containerWidth = map.getSize().x;
+		var zoom = map.getBoundsZoom( bounds );
+		while( zoom < map.getMaxZoom() ) {
+			var nw = map.project( bounds.getNorthWest(), zoom );
+			var se = map.project( bounds.getSouthEast(), zoom );
+			if( Math.abs( se.x - nw.x ) >= containerWidth ) { break; }
+			zoom++;
+		}
+		map.setView( bounds.getCenter(), zoom );
+	}
+
+	// 2-axis cover-fit (fills both width and height, cropping the looser axis) - right for a
+	// small fixed-size box like the overview, same job the old computeCoverExtent() did for the
+	// old fixed-size MapFrame. Wrong for the full-bleed main map (see fitBoundsWidth above) -
+	// the overview never resizes with the viewport, so this doesn't have that problem.
 	function fitBoundsCover( map, bounds ) {
-		bounds = L.latLngBounds( bounds );
+		bounds = L.latLngBounds( bounds ).pad( 0.5 );
 		var size = map.getSize();
 		var zoom = map.getBoundsZoom( bounds );
 		while( zoom < map.getMaxZoom() ) {
@@ -42,7 +65,7 @@
 	}
 
 	var leafletMap = L.map( "leafletMap" );
-	if( mapBounds ) { fitBoundsCover( leafletMap, mapBounds ); } else { leafletMap.setView( [54.225, -4.575], 10 ); }
+	if( mapBounds ) { fitBoundsWidth( leafletMap, mapBounds ); } else { leafletMap.setView( [54.225, -4.575], 10 ); }
 	var baseLayers = {ldelim}{rdelim};
 	var overlays = {ldelim}{rdelim};
 	var initialBase = null;
@@ -88,7 +111,7 @@
 					scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false,
 					keyboard: false, touchZoom: false
 				} );
-				if( mapBounds ) { overviewMap.fitBounds( mapBounds ); } else { overviewMap.setView( [54.225, -4.575], 8 ); }
+				if( mapBounds ) { fitBoundsCover( overviewMap, mapBounds ); } else { overviewMap.setView( [54.225, -4.575], 8 ); }
 				if( initialCfg ) { buildLayer( initialCfg ).addTo( overviewMap ); }
 				var viewportRect = L.rectangle( map.getBounds(), { color: "#d00", weight: 2, fill: false } ).addTo( overviewMap );
 				map.on( "moveend", function() { viewportRect.setBounds( map.getBounds() ); } );
