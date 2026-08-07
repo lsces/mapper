@@ -528,10 +528,12 @@ so far — deliberately not pushed to srv9/srv10 yet, picking back up next sessi
   attachments (once the DB-backed map catalog exists) — raised, not decided.
 - `pancon_gb_2016` (Land-Form PANORAMA Contours, DXF, 812 tiles) — investigated, held for later.
   No embedded CRS, needs a `gdaltindex`-built TILEINDEX across all 812 files.
-- srv10 cherry-pick list — `meridian_2014`, `minisc_2026`, `over_gb`, `ras250_2026`,
-  `IOM250k2026` are there; `meridian_2016`, `minisc_2019`, `opmplc_*`, `vmdvec_*`,
-  `zoomstack_2026`, `omlras_gb` are srv9-only. Decision on which (if any) more to promote not
-  made — `dataDir` gate means nothing breaks either way.
+- srv10 cherry-pick list (old registry, `mapper_mapsets.php`) — `meridian_2014`, `minisc_2026`,
+  `over_gb`, `ras250_2026`, `iom_years` are there (`IOM250k2026` isn't a mapset of its own — it's
+  one layer inside `iom_years`, mislabeled here previously); `meridian_2016`, `minisc_2019`,
+  `opmplc_*`, `vmdvec_*`, `zoomstack_2026`, `omlras_gb` are srv9-only. Decision on which (if any)
+  more to promote not made — `dataDir` gate means nothing breaks either way. Increasingly
+  superseded by real `Map` content objects (see below) — srv10 uploads started 2026-08-07.
 
 See `[[project_mapper_osrm_revival]]` memory for the full session-by-session history (wrong
 turns included) behind the choices above.
@@ -561,3 +563,45 @@ not masked.
 **Any future renderd-backed mapset needs this same relative-URL treatment automatically** (it's
 generic in `display_map2.php`, not per-mapset) — but a *new* site vhost wiring up `/tiles/` for the
 first time will need the same include-order awareness (`tiles.conf` before `html_common.conf`).
+
+## display_map.php slug-permission bypass, EXCL default, /mapper/view/ pretty URL — 2026-08-07
+`display_map.php` only extracted the resolver's `map` result inside its `content_id`-given
+branch, so a real `Map` reached via a slug match on `?mapset=` (the `/mapper/map/<name>` pretty
+URL) silently skipped `verifyViewPermission()` (the protector-aware check) and fell through to
+the registry's blanket permission check instead — a genuine per-item permission bypass, found
+live testing `/mapper/map/over_gb`. `display_map2.php` never had this (always used a single
+resolver-call/unconditional-extract pattern). Fixed by restructuring `display_map.php` to match:
+one `mapper_resolve_mapset()` call, then branch purely on whether `$map` came back truthy.
+
+Separately found `Map::storeParsedMapFileDetails()` defaulted `EXCL` to exclusive (radio-button,
+pick-one-of-several-layers) whenever a mapfile had no `# MAPPER: EXCL=` comment — wrong for
+ordinary multi-layer thematic datasets, caught live when batch-imported `meridian_2014`
+collapsed its 12 independent overlay layers into a single-choice group (only one layer, close to
+"settlements", stayed visible). Default flipped to non-exclusive; exclusive is now opt-in via the
+comment, added to the 5 mapsets that are genuinely edition-picker style (`iom_years`,
+`minisc_2019`/`_2026`, `omlras_gb`, `over_gb`). Existing wrongly-defaulted xref rows for the other
+10 already-imported multi-layer content objects corrected directly in the DB.
+
+Added a pretty `/mapper/view/<name>` URL for `view.php` (slug lookup, same pattern as
+`/mapper/map/` and `/mapper/map2/`), and pointed `Map::getDisplayUrlFromHash()` at it so
+`list_maps.php`'s links use it directly instead of a plain `?content_id=` dispatch.
+
+Deployed to **both srv9 and srv10** same session (mapper + kernel package pulls, webstack pull,
+nginx tested+reloaded on both, php-fpm auto-reloaded by `server-pull-all.sh`) — srv9 and srv10
+were both still on the pre-Map-class commit, so this was the first real deploy of the whole
+Map-object feature, not just today's fixes. No DB schema step needed — xref group/item
+registration already present on both servers from earlier. Smoke-tested clean on both (bare
+demo, `list_maps.php`, a bogus slug 404ing correctly). User then uploaded the first 4 real `Map`
+objects to srv10 directly and confirmed them working.
+
+**Known follow-ups for next session:**
+- Add small view/map/map2 launch icons in front of the title link on `list_maps.php` — one icon
+  routes to the classic frameset viewer (`display_map.php`), one to the Leaflet viewer
+  (`display_map2.php`), alongside the existing metadata `view.php` link.
+- `overviewHeight` (the per-mapset overview-box height override, see the "Bitweaver-module vs.
+  raw-frameset dimension mismatch" section above) only exists in the old registry array
+  (`mapper_mapsets.php`) — `resolve_mapset_inc.php`'s content_id branch never populates it, so
+  every real `Map` object silently falls back to the fixed 150px default in `display_map2.php`,
+  losing the taller-box override GB-scale/portrait mapsets need. Needs a new xref item
+  (`general`/`OVERVIEWHEIGHT` or similar) alongside `EXTENT`/`SHPPATH`/`EXCL`, settable from
+  `edit.php`, read back in `resolve_mapset_inc.php`'s content_id branch.
