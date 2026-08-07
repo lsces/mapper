@@ -359,17 +359,69 @@ class Map extends LibertyMime
 			$this->storeXref( $xrefHash );
 		}
 
-		// Retag the stored file's mime type now that it's confirmed to be a real mapfile -
-		// finfo/libmagic can only ever call plain-text content 'text/plain' (see class doc
-		// comment above); this is the only point anything can usefully tag it more precisely.
+		// Retag the stored file's mime type, and fix its name back to .map - both now that it's
+		// confirmed to be a real mapfile. finfo/libmagic can only ever sniff plain-text content
+		// as 'text/plain' (see class doc comment above), and liberty_process_generic() rewrites
+		// the extension to match that sniffed type since it doesn't match the (unregistered)
+		// .map extension's own looked-up type - the same class of correction mime.pdf.php makes
+		// for its own files (attachment_plugin_guid, thumbnails, etc), just done directly here
+		// since Map has no MIME plugin of its own (see store()'s own doc comment for why).
 		if( !empty( $name ) || $extent !== null ) {
-			$fileId = $this->mDb->getOne(
-				"SELECT lf.`file_id` FROM `".BIT_DB_PREFIX."liberty_files` lf INNER JOIN `".BIT_DB_PREFIX."liberty_attachments` la ON(la.`foreign_id`=lf.`file_id`) WHERE la.`content_id` = ?",
+			$fileRow = $this->mDb->getRow(
+				"SELECT lf.`file_id`, lf.`file_name` FROM `".BIT_DB_PREFIX."liberty_files` lf INNER JOIN `".BIT_DB_PREFIX."liberty_attachments` la ON(la.`foreign_id`=lf.`file_id`) WHERE la.`content_id` = ?",
 				[ $this->mContentId ]
 			);
-			if( $fileId ) {
-				$this->mDb->query( "UPDATE `".BIT_DB_PREFIX."liberty_files` SET `mime_type` = ? WHERE `file_id` = ?", [ 'text/x-mapfile', $fileId ] );
+			if( $fileRow ) {
+				$this->mDb->query( "UPDATE `".BIT_DB_PREFIX."liberty_files` SET `mime_type` = ? WHERE `file_id` = ?", [ 'text/x-mapfile', $fileRow['file_id'] ] );
+
+				$uploadedFiles = $pParamHash['upload_store']['files'] ?? [];
+				$uploadedFile = reset( $uploadedFiles );
+				$destBranch = $uploadedFile['upload']['dest_branch'] ?? null;
+				if( $destBranch ) {
+					$finalName = $fileRow['file_name'];
+					if( !preg_match( '/\.map$/i', $finalName ?? '' ) ) {
+						$correctedName = preg_replace( '/\.[^.]+$/', '.map', $finalName );
+						$oldPath = STORAGE_PKG_PATH.$destBranch.$finalName;
+						$newPath = STORAGE_PKG_PATH.$destBranch.$correctedName;
+						if( is_file( $oldPath ) && rename( $oldPath, $newPath ) ) {
+							$this->mDb->query( "UPDATE `".BIT_DB_PREFIX."liberty_files` SET `file_name` = ? WHERE `file_id` = ?", [ $correctedName, $fileRow['file_id'] ] );
+							$finalName = $correctedName;
+						}
+					}
+					// SYMBOLSET/FONTSET use relative paths in every mapfile in this project
+					// ("../symbols/font.list"), resolved by MapServer against wherever the file
+					// physically sits - fine for the old registry (always mapper/map/, a fixed
+					// offset from mapper/symbols/), broken for a Map's attachment storage
+					// location (varies per content_id, no stable relative offset back).
+					// Rewritten to absolute paths so the stored copy is self-sufficient
+					// regardless of where it physically ends up - same allowed correction as the
+					// filename/mimetype fixes above.
+					$this->fixSymbolPaths( STORAGE_PKG_PATH.$destBranch.$finalName );
+				}
 			}
+		}
+	}
+
+	/** Rewrite relative SYMBOLSET/FONTSET directives to absolute paths pointing at the real,
+	 * fixed mapper/symbols/ location - see storeParsedMapFileDetails()'s call site. */
+	private function fixSymbolPaths( string $pFilePath ): void {
+		$content = file_get_contents( $pFilePath );
+		if( $content === false ) {
+			return;
+		}
+		$fixed = preg_replace_callback(
+			'/^(\s*(?:SYMBOLSET|FONTSET)\s+")([^"]+)(")/mi',
+			function( $m ) {
+				$path = $m[2];
+				if( $path === '' || $path[0] === '/' ) {
+					return $m[0];
+				}
+				return $m[1].MAPPER_PKG_PATH.'symbols/'.basename( $path ).$m[3];
+			},
+			$content
+		);
+		if( $fixed !== null && $fixed !== $content ) {
+			file_put_contents( $pFilePath, $fixed );
 		}
 	}
 
