@@ -65,9 +65,16 @@ $gBitSystem->verifyPermission( 'bit_p_view_mapper' );
 $gdalWmsPath = '/etc/webstack/mapserver/data/'.$resolvedMapsetKey.'_gdalwms.xml';
 $layersConfig = [];
 if( is_readable( $gdalWmsPath ) && preg_match( '#<ServerUrl>(.*?)</ServerUrl>#', file_get_contents( $gdalWmsPath ), $matches ) ) {
+	// Host-relative, not the XML's own absolute ServerUrl - that stays absolute for GDAL's
+	// server-side fetch (display_map.php's old path, needs a real curl-able URL), but the
+	// browser should fetch from whichever server actually served this page, matching
+	// /cgi-bin/mapserv's existing same-origin behaviour. tiles.rdm1.uk always public-resolves
+	// to srv10 regardless of origin server, which silently hid srv9's own fuller local tile
+	// archive (srv9 also serving its own /tiles/ location - see webstack's snippets/tiles.conf).
+	$tileUrlPath = parse_url( $matches[1], PHP_URL_PATH );
 	$layersConfig[] = [
 		'type'      => 'xyz',
-		'url'       => str_replace( [ '${z}', '${x}', '${y}' ], [ '{z}', '{x}', '{y}' ], $matches[1] ),
+		'url'       => str_replace( [ '${z}', '${x}', '${y}' ], [ '{z}', '{x}', '{y}' ], $tileUrlPath ),
 		'name'      => $mapset['title'],
 		'visible'   => true,
 		'exclusive' => true,
