@@ -112,12 +112,27 @@ if( !empty( $mapset['extent'] ) ) {
 		$extentParts = preg_split( '/\s+/', trim( $mapset['extent'] ) );
 		if( count( $extentParts ) === 4 ) {
 			[ $minX, $minY, $maxX, $maxY ] = array_map( 'floatval', $extentParts );
-			$sw = shell_exec( 'echo '.escapeshellarg( "$minX $minY" ).' | gdaltransform -s_srs '.escapeshellarg( "EPSG:$srcEpsg" ).' -t_srs EPSG:4326' );
-			$ne = shell_exec( 'echo '.escapeshellarg( "$maxX $maxY" ).' | gdaltransform -s_srs '.escapeshellarg( "EPSG:$srcEpsg" ).' -t_srs EPSG:4326' );
-			$swParts = preg_split( '/\s+/', trim( (string)$sw ) );
-			$neParts = preg_split( '/\s+/', trim( (string)$ne ) );
-			if( count( $swParts ) >= 2 && count( $neParts ) >= 2 ) {
-				$mapBounds = [ [ (float)$swParts[1], (float)$swParts[0] ], [ (float)$neParts[1], (float)$neParts[0] ] ];
+			// Transform all 4 corners, not just SW/NE - source CRSes like British National Grid
+			// are rotated relative to true north, so a perfect rectangle in the source CRS does
+			// NOT project to a perfect rectangle in lat/lng. Using only 2 opposite corners can
+			// under-represent the true extent on whichever side the rotation skews away from
+			// them (found live: meridian_2014's NW corner projects further west than its SW
+			// corner does, cropping real coastline data off one edge while leaving unearned
+			// margin on the other).
+			$corners = "$minX $minY\n$maxX $minY\n$maxX $maxY\n$minX $maxY\n";
+			$cmd = 'echo '.escapeshellarg( trim( $corners ) ).' | gdaltransform -s_srs '.escapeshellarg( "EPSG:$srcEpsg" ).' -t_srs EPSG:4326';
+			$output = shell_exec( $cmd );
+			$lines = array_filter( explode( "\n", trim( (string)$output ) ) );
+			$lons = $lats = [];
+			foreach( $lines as $line ) {
+				$parts = preg_split( '/\s+/', trim( $line ) );
+				if( count( $parts ) >= 2 ) {
+					$lons[] = (float)$parts[0];
+					$lats[] = (float)$parts[1];
+				}
+			}
+			if( count( $lons ) === 4 ) {
+				$mapBounds = [ [ min( $lats ), min( $lons ) ], [ max( $lats ), max( $lons ) ] ];
 			}
 		}
 	}
@@ -132,5 +147,11 @@ $gBitSmarty->assign( 'mapset', $resolvedMapsetKey );
 $gBitSmarty->assign( 'mapsetTitle', $mapset['title'] );
 $gBitSmarty->assign( 'layersConfigJson', json_encode( $layersConfig ) );
 $gBitSmarty->assign( 'mapBoundsJson', json_encode( $mapBounds ) );
+// Overview box height - defaults to a square 150px matching the width, but some mapsets (GB-
+// scale, portrait-shaped extents) need a taller box or the bottom edge gets cropped under
+// cover-fit. Static per-mapset override rather than computing it dynamically client-side -
+// same idea as the old system's per-mapfile REFERENCE SIZE, avoids the stale-cached-container-
+// size timing bug a dynamic JS computation hit.
+$gBitSmarty->assign( 'overviewHeight', $mapset['overviewHeight'] ?? 150 );
 
 $gBitSystem->display( 'bitpackage:mapper/center_view_map2.tpl', NULL, array( 'display_mode' => 'display' ));
