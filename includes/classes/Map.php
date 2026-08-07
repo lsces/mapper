@@ -22,8 +22,19 @@ define( 'MAPPER_CONTENT_TYPE_GUID', 'mapper' );
 */
 class Map extends LibertyMime
 {
-	function __construct( $pContentId = null ) {
+	/**
+	 * getNewObject() (the generic factory behind getLibertyObject(), used by index.php's
+	 * content_id-based dispatch among others) always calls `new $class( null, $contentId )` -
+	 * a two-argument convention shared by every content type, even ones like Map that have no
+	 * separate "own id" field. $pContentId falling back to $pMapId (unused otherwise) is what
+	 * makes both `new Map( $contentId )` (this package's own direct calls) and the generic
+	 * `new Map( null, $contentId )` dispatch resolve correctly - found live: without this,
+	 * the generic path silently dropped content_id entirely, matching StockAssembly's own
+	 * `$pContentId = $pContentId ?? $pAssemblyId;` fallback for the same reason.
+	 */
+	function __construct( $pMapId = null, $pContentId = null ) {
 		parent::__construct();
+		$pContentId = $pContentId ?? $pMapId;
 		if( $this->verifyId( $pContentId ) ) {
 			$this->mContentId = (int)$pContentId;
 		}
@@ -42,6 +53,13 @@ class Map extends LibertyMime
 		$this->mViewContentPerm   = 'bit_p_view_mapper';
 		$this->mUpdateContentPerm = 'bit_p_edit_mapper';
 		$this->mAdminContentPerm  = 'bit_p_admin_mapper';
+	}
+
+	/** view.php is the metadata/info page (title, description, layers, extent) - separate from
+	 * actually rendering the interactive map (display_map.php/display_map2.php), which still
+	 * only resolve mapsets from the old registry's string key, not a content_id yet. */
+	public function getDisplayUrl() {
+		return MAPPER_PKG_URL.'view.php?content_id='.$this->mContentId;
 	}
 
 	/**
@@ -89,6 +107,54 @@ class Map extends LibertyMime
 	}
 
 	/**
+	 * Modeled on FisheyeImage::load() (a confirmed-fixed protector call site, not StockAssembly's
+	 * pattern), simplified since Map has no own table to join. Wiring getServicesSql( ...,
+	 * 'content_load_sql_function', ..., $this ) in here is what makes per-map role protection
+	 * (via the protector package) actually enforced rather than just stored and silently
+	 * ignored - see protector/CLAUDE.md's "Permission check was unreachable" writeup; the base
+	 * LibertyContent::load()/LibertyMime::load() never call this hook themselves, only a
+	 * subclass's own load() override does.
+	 */
+	public function load( $pContentId = null, $pPluginParams = null ) {
+		if( $this->verifyId( $pContentId ) ) {
+			$this->mContentId = (int)$pContentId;
+		}
+		if( !$this->verifyId( $this->mContentId ) ) {
+			return false;
+		}
+
+		$selectSql = $joinSql = '';
+		$whereSql = " WHERE lc.`content_id` = ? AND lc.`content_type_guid` = ?";
+		$bindVars = [ $this->mContentId, MAPPER_CONTENT_TYPE_GUID ];
+
+		$this->getServicesSql( 'content_load_sql_function', $selectSql, $joinSql, $whereSql, $bindVars, $this );
+
+		$sql = "SELECT lc.* $selectSql
+					, uue.`login` AS `modifier_user`, uue.`real_name` AS `modifier_real_name`
+					, uuc.`login` AS `creator_user`, uuc.`real_name` AS `creator_real_name`
+				FROM `".BIT_DB_PREFIX."liberty_content` lc
+					LEFT JOIN `".BIT_DB_PREFIX."users_users` uue ON (uue.`user_id` = lc.`modifier_user_id`)
+					LEFT JOIN `".BIT_DB_PREFIX."users_users` uuc ON (uuc.`user_id` = lc.`user_id`) $joinSql
+				$whereSql";
+
+		if( !( $this->mInfo = $this->mDb->getRow( $sql, $bindVars ) ) ) {
+			return false;
+		}
+		$this->mContentId = $this->mInfo['content_id'];
+		$this->mInfo['creator'] = $this->mInfo['creator_real_name'] ?? $this->mInfo['creator_user'];
+		$this->mInfo['editor']  = $this->mInfo['modifier_real_name'] ?? $this->mInfo['modifier_user'];
+
+		// LibertyMime loads attachment details into $this->mStorage
+		parent::load();
+
+		if( !empty( $this->mStorage ) ) {
+			$this->mInfo['map_file'] = current( $this->mStorage );
+		}
+
+		return true;
+	}
+
+	/**
 	 * Store the uploaded .map file, extracting NAME/EXTENT/SHAPEPATH/LAYER details from its own
 	 * plain-text content into the 'general'/'layers' xref groups (see admin/schema_inc.php)
 	 * along the way. No MIME-plugin dispatch involved - a Map upload is always a .map file by
@@ -110,8 +176,18 @@ class Map extends LibertyMime
 			? $this->parseMapFile( $upload['tmp_name'] )
 			: null;
 
-		if( $parsed && !empty( $parsed['name'] ) && empty( $pParamHash['title'] ) ) {
-			$pParamHash['title'] = $parsed['name'];
+		if( $parsed && empty( $pParamHash['title'] ) ) {
+			// "Demo" is a real, pre-existing leftover in several already-deployed private
+			// mapfiles (copy-paste template artifact, not something this parser invented -
+			// confirmed against the actual files) - falls back to the uploaded filename
+			// (without extension) instead of propagating a meaningless shared title into
+			// every object that happens to still carry it.
+			$name = $parsed['name'];
+			if( !empty( $name ) && strtolower( $name ) !== 'demo' ) {
+				$pParamHash['title'] = $name;
+			} elseif( !empty( $upload['name'] ) ) {
+				$pParamHash['title'] = pathinfo( $upload['name'], PATHINFO_FILENAME );
+			}
 		}
 
 		$this->StartTrans();
@@ -120,6 +196,10 @@ class Map extends LibertyMime
 			$this->mInfo['content_id'] = $this->mContentId;
 			if( $parsed ) {
 				$this->storeParsedMapFileDetails( $parsed, $pParamHash );
+			} elseif( array_key_exists( 'excl', $pParamHash ) ) {
+				// Plain edit, no new file - EXCL still needs to be independently toggleable
+				// from the edit page, not just settable via upload (file comment or checkbox).
+				$this->upsertSingleXref( 'general', 'EXCL', $pParamHash['excl'] ? '1' : '0' );
 			}
 			$this->CompleteTrans();
 			$this->load();
@@ -140,10 +220,10 @@ class Map extends LibertyMime
 	private function parseMapFile( string $pSourceFile ): array {
 		$lines = file( $pSourceFile, FILE_IGNORE_NEW_LINES );
 		if( !$lines ) {
-			return [ 'name' => null, 'extent' => null, 'shapePath' => null, 'layers' => [] ];
+			return [ 'name' => null, 'extent' => null, 'shapePath' => null, 'excl' => null, 'layers' => [] ];
 		}
 
-		$name = $extent = $shapePath = null;
+		$name = $extent = $shapePath = $excl = null;
 		$layers = [];
 		$depth = 0;
 		$inLayer = false;
@@ -152,7 +232,17 @@ class Map extends LibertyMime
 
 		foreach( $lines as $line ) {
 			$trim = trim( $line );
-			if( $trim === '' || $trim[0] === '#' ) {
+			if( $trim === '' ) {
+				continue;
+			}
+			if( $trim[0] === '#' ) {
+				// Not real MapServer syntax - an optional, namespaced convention this parser
+				// specifically recognises so EXCL can travel with the file itself rather than
+				// depending on a per-upload form checkbox (which can't sensibly apply one
+				// value across a whole batch-archive import - see mapper/CLAUDE.md).
+				if( $excl === null && preg_match( '/^#\s*MAPPER:\s*EXCL\s*=\s*(true|false|1|0)\s*$/i', $trim, $m ) ) {
+					$excl = in_array( strtolower( $m[1] ), [ 'true', '1' ], true );
+				}
 				continue;
 			}
 
@@ -202,13 +292,13 @@ class Map extends LibertyMime
 			}
 		}
 
-		return [ 'name' => $name, 'extent' => $extent, 'shapePath' => $shapePath, 'layers' => $layers ];
+		return [ 'name' => $name, 'extent' => $extent, 'shapePath' => $shapePath, 'excl' => $excl, 'layers' => $layers ];
 	}
 
 	/** Write the already-parsed details (see parseMapFile()) into the xref tables and retag the
 	 * stored file's mime type - pure DB work, no file access, safe to run after store(). */
 	private function storeParsedMapFileDetails( array $pParsed, array $pParamHash ): void {
-		[ 'name' => $name, 'extent' => $extent, 'shapePath' => $shapePath, 'layers' => $layers ] = $pParsed;
+		[ 'name' => $name, 'extent' => $extent, 'shapePath' => $shapePath, 'excl' => $excl, 'layers' => $layers ] = $pParsed;
 
 		if( $extent !== null ) {
 			$parts = preg_split( '/\s+/', $extent );
@@ -224,7 +314,12 @@ class Map extends LibertyMime
 			$this->upsertSingleXref( 'general', 'SHPPATH', $shapePath );
 		}
 
-		if( array_key_exists( 'excl', $pParamHash ) ) {
+		// The mapfile's own "# MAPPER: EXCL=..." comment (if present) wins over the upload
+		// form's checkbox - it's the only signal that works sensibly for a batch-archive
+		// import (one checkbox can't apply correctly across many unrelated mapfiles at once).
+		if( $excl !== null ) {
+			$this->upsertSingleXref( 'general', 'EXCL', $excl ? '1' : '0' );
+		} elseif( array_key_exists( 'excl', $pParamHash ) ) {
 			$this->upsertSingleXref( 'general', 'EXCL', $pParamHash['excl'] ? '1' : '0' );
 		} else {
 			// Only set a default the first time - don't clobber an admin's later edit on re-upload
