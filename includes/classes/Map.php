@@ -8,6 +8,7 @@ namespace Bitweaver\Mapper;
 
 use Bitweaver\Liberty\LibertyContent;
 use Bitweaver\Liberty\LibertyMime;
+use Bitweaver\KernelTools;
 
 define( 'MAPPER_CONTENT_TYPE_GUID', 'mapper' );
 
@@ -59,7 +60,28 @@ class Map extends LibertyMime
 	 * actually rendering the interactive map (display_map.php/display_map2.php), which still
 	 * only resolve mapsets from the old registry's string key, not a content_id yet. */
 	public function getDisplayUrl() {
-		return MAPPER_PKG_URL.'view.php?content_id='.$this->mContentId;
+		return static::getDisplayUrlFromHash( $this->mInfo );
+	}
+
+	/**
+	 * Static hash-driven equivalent of getDisplayUrl() - used by getContentList()'s generic
+	 * list-building (see LibertyContent::getContentList(), which calls
+	 * $type['handler_class']::getDisplayLinkFromHash() per row rather than loading a full Map
+	 * object for each one). Without this override, list_maps.php's links fell back to the
+	 * generic LibertyContent::getDisplayLinkFromHash() default (a plain /index.php?content_id=
+	 * top-level dispatch) instead of going straight to view.php - same pattern FisheyeImage
+	 * already uses for its own getDisplayUrlFromHash()/getDisplayLinkFromHash() pair.
+	 */
+	public static function getDisplayUrlFromHash( &$pParamHash ) {
+		return MAPPER_PKG_URL.'view.php?content_id='.( $pParamHash['content_id'] ?? '' );
+	}
+
+	public static function getDisplayLinkFromHash( &$pParamHash, $pTitle = '', $pAnchor = null ) {
+		$pTitle = trim( (string)$pTitle );
+		if( empty( $pTitle ) ) {
+			$pTitle = $pParamHash['title'] ?? KernelTools::tra( 'No Title' );
+		}
+		return '<a title="'.htmlspecialchars( $pTitle ).'" href="'.static::getDisplayUrlFromHash( $pParamHash ).'">'.htmlspecialchars( $pTitle ).'</a>';
 	}
 
 	/**
