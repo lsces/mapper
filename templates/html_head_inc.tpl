@@ -6,7 +6,7 @@
 	   etc) is ScriptFrame's own separate copy, resolved by
 	   html/script.php itself - see mapper/includes/mapsets_inc.php *}
 	<script type="text/javascript">
-	var scriptURL = "{$smarty.const.MAPPER_PKG_URL}html/script.php{if $mapset}?mapset={$mapset}{/if}";
+	var scriptURL = "{$smarty.const.MAPPER_PKG_URL}html/script.php{if $contentId}?content_id={$contentId}{elseif $mapset}?mapset={$mapset}{/if}";
 	var styleURL = "{$smarty.const.MAPPER_PKG_URL}styles/client.css";
 	</script>
 	{* the frameset iframes are sized to their content (see html/navi.html,

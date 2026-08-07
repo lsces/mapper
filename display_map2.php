@@ -11,8 +11,10 @@
  *
  * display_map2 - Leaflet-based replacement for display_map, dropped straight into the normal
  * Bitweaver page shell (header/footer intact) instead of the classic MapServer CGI/frameset
- * choreography (see mapper/CLAUDE.md). Resolves any mapset from the real registry (same merge logic as
- * display_map.php / html/script.php) and builds one Leaflet layer per underlying source:
+ * choreography (see mapper/CLAUDE.md). Resolution itself (registry key or real Map content_id)
+ * lives in includes/resolve_mapset_inc.php, shared with display_map.php/html/script.php - see
+ * that file's own doc comment for why both paths still coexist. Builds one Leaflet layer per
+ * underlying source:
  * - XYZ tile-backed mapsets (osmcarto_iom, osm_tiles_iom, iom_2001, iom_2007_25k, ...) are
  *   detected by the presence of their *_gdalwms.xml sidecar - same file the classic mapfile's
  *   GDAL WMS/TMS connector already points at, reused here as the tile URL source of truth
@@ -35,36 +37,33 @@
 require_once( '../kernel/includes/setup_inc.php' );
 use Bitweaver\KernelTools;
 use Bitweaver\HttpStatusCodes;
+require_once( MAPPER_PKG_INCLUDE_PATH.'resolve_mapset_inc.php' );
+use function Bitweaver\Mapper\mapper_resolve_mapset;
 
 $gBitSystem->verifyPackage( 'mapper' );
 
-// mapset resolution - same merge logic as display_map.php / html/script.php (see
-// mapper/includes/mapsets_inc.php)
+$contentId = !empty( $_GET['content_id'] ) && ctype_digit( (string)$_GET['content_id'] ) ? (int)$_GET['content_id'] : null;
 $rawMapset = ( !empty( $_GET['mapset'] ) && preg_match( '/^[A-Za-z0-9_-]+$/', $_GET['mapset'] ) ) ? $_GET['mapset'] : '';
-$mapsets = require( MAPPER_PKG_INCLUDE_PATH.'mapsets_inc.php' );
-$siteMapsetsFile = '/etc/webstack/domains/'.$gBitDbName.'/mapper_mapsets.php';
-if( file_exists( $siteMapsetsFile ) ) {
-	$siteMapsets = require( $siteMapsetsFile );
-	if( !empty( $siteMapsets['mapsets'] ) ) {
-		$mapsets['mapsets'] = array_merge( $mapsets['mapsets'], $siteMapsets['mapsets'] );
-	}
-	if( !empty( $siteMapsets['default'] ) ) {
-		$mapsets['default'] = $siteMapsets['default'];
-	}
-}
-if( !empty( $rawMapset ) && empty( $mapsets['mapsets'][$rawMapset] ) ) {
+
+$resolved = mapper_resolve_mapset( $contentId, $rawMapset );
+if( $resolved === null ) {
 	$gBitSystem->fatalError( KernelTools::tra( 'The requested map could not be found' ), null, null, HttpStatusCodes::HTTP_NOT_FOUND );
 }
-$resolvedMapsetKey = !empty( $rawMapset ) ? $rawMapset : $mapsets['default'];
-$mapset = $mapsets['mapsets'][$resolvedMapsetKey];
+[ 'mapset' => $mapset, 'mapCgiPath' => $mapCgiPath, 'gdalWmsPath' => $gdalWmsPath, 'resolvedKey' => $resolvedMapsetKey, 'map' => $map ] = $resolved;
+
+if( $map ) {
+	// Protector-aware (per-item role gating), not the blanket package-level check the registry
+	// path still needs - Map::load() wires in the same 'content_load_sql_function' hook
+	// verified live for view.php/edit.php, see protector/CLAUDE.md.
+	$map->verifyViewPermission();
+} else {
+	$gBitSystem->verifyPermission( 'bit_p_view_mapper' );
+}
 
 $gBitSystem->setBrowserTitle( 'Map - '.$mapset['title'] );
 
-$gBitSystem->verifyPermission( 'bit_p_view_mapper' );
-
-$gdalWmsPath = '/etc/webstack/mapserver/data/'.$resolvedMapsetKey.'_gdalwms.xml';
 $layersConfig = [];
-if( is_readable( $gdalWmsPath ) && preg_match( '#<ServerUrl>(.*?)</ServerUrl>#', file_get_contents( $gdalWmsPath ), $matches ) ) {
+if( $gdalWmsPath && is_readable( $gdalWmsPath ) && preg_match( '#<ServerUrl>(.*?)</ServerUrl>#', file_get_contents( $gdalWmsPath ), $matches ) ) {
 	// Host-relative, not the XML's own absolute ServerUrl - that stays absolute for GDAL's
 	// server-side fetch (display_map.php's old path, needs a real curl-able URL), but the
 	// browser should fetch from whichever server actually served this page, matching
@@ -80,13 +79,11 @@ if( is_readable( $gdalWmsPath ) && preg_match( '#<ServerUrl>(.*?)</ServerUrl>#',
 		'exclusive' => true,
 	];
 } else {
-	// Classic MapServer mapset - one live WMS layer per registry layerList entry. mapCgiPath
-	// reuses MAPPER_PKG_PATH, the same desktop-vs-server-resolving convention html/script.php
-	// already relies on for 'file' (see mapsets_inc.php's own doc comment). 'map' is passed as
-	// its own field rather than baked into a query string - some output stage between here and
-	// the browser rewrites '&' to '&amp;' even with Smarty's nofilter, so no '&'-joined string
-	// can survive the round trip; Leaflet's WMS layer builds the querystring client-side instead.
-	$mapCgiPath = MAPPER_PKG_PATH.'map/'.$mapset['file'];
+	// Classic MapServer mapset - one live WMS layer per registry layerList entry. 'map' is
+	// passed as its own field rather than baked into a query string - some output stage between
+	// here and the browser rewrites '&' to '&amp;' even with Smarty's nofilter, so no
+	// '&'-joined string can survive the round trip; Leaflet's WMS layer builds the querystring
+	// client-side instead.
 	$exclusive = !isset( $mapset['layerExclusive'] ) || $mapset['layerExclusive'];
 	foreach( $mapset['layerList'] as $i => $layerName ) {
 		$layersConfig[] = [
@@ -112,8 +109,7 @@ if( empty( $layersConfig ) ) {
 // conversion, so it's correct regardless of which CRS a given mapfile happens to use.
 $mapBounds = null;
 if( !empty( $mapset['extent'] ) ) {
-	$mapFilePath = MAPPER_PKG_PATH.'map/'.$mapset['file'];
-	$realMapFilePath = realpath( $mapFilePath );
+	$realMapFilePath = realpath( $mapCgiPath );
 	if( $realMapFilePath && preg_match( '/epsg:(\d+)/i', file_get_contents( $realMapFilePath ), $projMatch ) ) {
 		$srcEpsg = $projMatch[1];
 		$extentParts = preg_split( '/\s+/', trim( $mapset['extent'] ) );

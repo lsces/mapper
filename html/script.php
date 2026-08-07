@@ -9,29 +9,23 @@
  */
 require_once( '../../kernel/includes/setup_inc.php' );
 $gBitSystem->verifyPackage( 'mapper' );
-
-global $gBitDbName;
-
-$mapsets = require( MAPPER_PKG_INCLUDE_PATH.'mapsets_inc.php' );
-$siteMapsetsFile = '/etc/webstack/domains/'.$gBitDbName.'/mapper_mapsets.php';
-if( file_exists( $siteMapsetsFile ) ) {
-	$siteMapsets = require( $siteMapsetsFile );
-	if( !empty( $siteMapsets['mapsets'] ) ) {
-		$mapsets['mapsets'] = array_merge( $mapsets['mapsets'], $siteMapsets['mapsets'] );
-	}
-	if( !empty( $siteMapsets['default'] ) ) {
-		$mapsets['default'] = $siteMapsets['default'];
-	}
-}
+require_once( MAPPER_PKG_INCLUDE_PATH.'resolve_mapset_inc.php' );
+use function Bitweaver\Mapper\mapper_resolve_mapset;
 
 // script.php is ScriptFrame's own document - it's not just a page, it's the engine that
 // sets mapPath/layerList and redirects every other frame (see Load2() below). A missing/
-// invalid mapset here must fall back silently, not replace this document's content with an
-// error message - that would break the frame choreography entirely (empty map, no redirect).
-// display_map.php resolves+validates the mapset once (with its own fallback) and passes the
-// resolved key down via scriptURL, so this should only ever see a valid key in practice.
-$requestedMapset = ( !empty( $_GET['mapset'] ) && !empty( $mapsets['mapsets'][$_GET['mapset']] ) ) ? $_GET['mapset'] : $mapsets['default'];
-$mapset = $mapsets['mapsets'][$requestedMapset];
+// invalid mapset/content_id here must fall back silently to the registry default, not replace
+// this document's content with an error message - that would break the frame choreography
+// entirely (empty map, no redirect). display_map.php resolves+validates+permission-checks once
+// and passes the resolved key/content_id down via scriptURL, so this should only ever see a
+// valid one in practice - the fallback here is a last-resort safety net, not the normal path.
+$contentId = !empty( $_GET['content_id'] ) && ctype_digit( (string)$_GET['content_id'] ) ? (int)$_GET['content_id'] : null;
+$rawMapset = !empty( $_GET['mapset'] ) ? $_GET['mapset'] : '';
+
+$resolved = mapper_resolve_mapset( $contentId, $rawMapset ) ?? mapper_resolve_mapset( null, '' );
+$mapset = $resolved['mapset'];
+$mapPath = $resolved['mapCgiPath'];
+$requestedMapset = $resolved['resolvedKey'];
 ?>
 <!-- MapServer Template -->
 <!DOCTYPE html>
@@ -81,7 +75,7 @@ function closeWindows() {
 <script language="javascript">
 //active mapset, resolved server-side - see includes/mapsets_inc.php
 var mapsetKey = <?php echo json_encode( $requestedMapset ); ?>;
-var mapPath = <?php echo json_encode( MAPPER_PKG_PATH.'map/'.$mapset['file'] ); ?>;
+var mapPath = <?php echo json_encode( $mapPath ); ?>;
 var layerList = <?php echo json_encode( array_values( $mapset['layerList'] ) ); ?>;
 var layerAlias = <?php echo json_encode( array_values( $mapset['layerAlias'] ) ); ?>;
 var layerVisible = <?php echo json_encode( array_values( $mapset['layerVisible'] ) ); ?>;

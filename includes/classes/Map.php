@@ -267,7 +267,7 @@ class Map extends LibertyMime
 				if( $keyword === 'LAYER' && !$inLayer ) {
 					$inLayer = true;
 					$layerDepth = $depth;
-					$currentLayer = [ 'name' => null, 'type' => null, 'status' => null, 'group' => null ];
+					$currentLayer = [ 'name' => null, 'type' => null, 'status' => null, 'group' => null, 'data' => null ];
 				}
 				continue;
 			}
@@ -284,6 +284,10 @@ class Map extends LibertyMime
 					case 'TYPE':   $currentLayer['type']   = $value; break;
 					case 'STATUS': $currentLayer['status'] = $value; break;
 					case 'GROUP':  $currentLayer['group']  = $value; break;
+					// DATA identifies XYZ/GDAL-WMS-backed layers (ends in _gdalwms.xml) vs
+					// classic vector/raster ones reading straight off SHAPEPATH - see
+					// display_map2.php's content_id resolution path.
+					case 'DATA':   $currentLayer['data']   = $value; break;
 				}
 			} elseif( $depth === 0 ) {
 				if( $name === null && $keyword === 'NAME' )           { $name = $value; }
@@ -345,6 +349,7 @@ class Map extends LibertyMime
 					'type'      => $layer['type'],
 					'status'    => $layer['status'],
 					'group'     => $layer['group'],
+					'data'      => $layer['data'],
 					'visible'   => ( $layer['status'] === 'ON' ) ? 1 : 0,
 					'queryable' => false,
 					'link'      => 0,
