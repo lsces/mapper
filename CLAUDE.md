@@ -535,3 +535,29 @@ so far — deliberately not pushed to srv9/srv10 yet, picking back up next sessi
 
 See `[[project_mapper_osrm_revival]]` memory for the full session-by-session history (wrong
 turns included) behind the choices above.
+
+## display_map2 XYZ tile URLs made host-relative — 2026-08-07
+`display_map2.php` originally passed a renderd-backed mapset's `*_gdalwms.xml` `<ServerUrl>`
+straight through to Leaflet — absolute (`https://tiles.rdm1.uk/...`), which always public-DNS-
+resolves to srv10 regardless of which server actually served the page. srv9 had a fuller local
+tile archive (`osm_carto_gb`'s full z6-18 vs srv10's deliberate z6-17-only subset, see
+`[[project_osm_tile_server]]`) that was completely unreachable through any browser path as a
+result — not gated by srv9's new access lockdown (`[[project_srv9_lockdown]]`), just invisible by
+accident. Fixed by stripping the sidecar URL down to its path (`parse_url(..., PHP_URL_PATH)`) so
+the browser fetches same-origin, matching `/cgi-bin/mapserv`'s existing relative behaviour — the
+XML's own `<ServerUrl>` stays absolute (GDAL's server-side WMS fetch, `display_map.php`'s old
+path, genuinely needs a real curl-able URL).
+
+Needed a matching `/tiles/` location added to the real site vhost, not just the pre-existing
+standalone `tiles.rdm1.uk` vhost — new shared `webstack/nginx/snippets/tiles.conf`, included from
+`10-lsces.uk.vhost.conf`. Hit a real nginx location-precedence bug doing this: `html_common.conf`'s
+generic `\.(js|css|png|...)$` static-asset catch-all was included earlier in the vhost and won
+nginx's first-matching-regex race, 404ing every `/tiles/*.png` request before `tile.php` ever ran
+— looked exactly like missing data until traced. Fixed by including `tiles.conf` before
+`html_common.conf`. Verified end-to-end post-fix: a z18 Trafalgar Square tile returns 200 from
+srv9, clean 404 from srv10 — the per-server data difference is now genuinely reachable/gated,
+not masked.
+
+**Any future renderd-backed mapset needs this same relative-URL treatment automatically** (it's
+generic in `display_map2.php`, not per-mapset) — but a *new* site vhost wiring up `/tiles/` for the
+first time will need the same include-order awareness (`tiles.conf` before `html_common.conf`).
