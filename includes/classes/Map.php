@@ -73,6 +73,13 @@ class Map extends LibertyMime
 	 * already uses for its own getDisplayUrlFromHash()/getDisplayLinkFromHash() pair.
 	 */
 	public static function getDisplayUrlFromHash( &$pParamHash ) {
+		// Pretty /mapper/view/<name> URL (see bitweaver_rewrites.conf), matching the existing
+		// /mapper/map/<name> and /mapper/map2/<name> pattern - falls back to the plain
+		// ?content_id= form only if the title can't slugify to anything (empty title).
+		$slug = static::slugify( (string)( $pParamHash['title'] ?? '' ) );
+		if( $slug !== '' ) {
+			return MAPPER_PKG_URL.'view/'.$slug;
+		}
 		return MAPPER_PKG_URL.'view.php?content_id='.( $pParamHash['content_id'] ?? '' );
 	}
 
@@ -82,6 +89,41 @@ class Map extends LibertyMime
 			$pTitle = $pParamHash['title'] ?? KernelTools::tra( 'No Title' );
 		}
 		return '<a title="'.htmlspecialchars( $pTitle ).'" href="'.static::getDisplayUrlFromHash( $pParamHash ).'">'.htmlspecialchars( $pTitle ).'</a>';
+	}
+
+	/**
+	 * Lowercase, alnum+underscore slug derived from a title - used for pretty mapset= URLs
+	 * (/mapper/map/<name>, see webstack's nginx/conf.d/bitweaver_rewrites.conf). Computed on
+	 * the fly from title rather than stored as its own field - simplest option while this is
+	 * still actively under development (see mapper/CLAUDE.md); worth revisiting only if link
+	 * stability across later title edits becomes a real concern.
+	 */
+	public static function slugify( string $pTitle ): string {
+		$slug = strtolower( trim( $pTitle ) );
+		$slug = preg_replace( '/[^a-z0-9]+/', '_', $slug );
+		return trim( $slug, '_' );
+	}
+
+	/**
+	 * Resolve a slug back to a content_id - a small linear scan over every Map's title, fine
+	 * at this project's real scale (dozens of mapsets, not thousands - see mapper/CLAUDE.md).
+	 * No explicit collision handling against the old registry's own keys needed: this is only
+	 * ever tried before the registry fallback (see resolve_mapset_inc.php), so a real Map
+	 * object naturally supersedes a stale array entry sharing the same name - exactly the
+	 * intended migration behaviour, not something to guard against.
+	 */
+	public static function lookupBySlug( string $pSlug ): ?int {
+		global $gBitDb;
+		if( $pSlug === '' ) {
+			return null;
+		}
+		$rows = $gBitDb->getAssoc( "SELECT `content_id`, `title` FROM `".BIT_DB_PREFIX."liberty_content` WHERE `content_type_guid` = ?", [ MAPPER_CONTENT_TYPE_GUID ] );
+		foreach( $rows as $contentId => $title ) {
+			if( static::slugify( (string)$title ) === $pSlug ) {
+				return (int)$contentId;
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -348,10 +390,15 @@ class Map extends LibertyMime
 		} elseif( array_key_exists( 'excl', $pParamHash ) ) {
 			$this->upsertSingleXref( 'general', 'EXCL', $pParamHash['excl'] ? '1' : '0' );
 		} else {
-			// Only set a default the first time - don't clobber an admin's later edit on re-upload
+			// Only set a default the first time - don't clobber an admin's later edit on re-upload.
+			// Default is non-exclusive (independent overlay checkboxes) - exclusive (radio-button,
+			// pick-one-of-several-editions, matching over_gb/iom_years) is opt-in via the mapfile's
+			// own comment, not assumed. Found live: batch-imported meridian_2014 defaulted to
+			// exclusive, collapsing all 12 independent thematic layers into a single-choice radio
+			// group in display_map2.php - only the last one added stayed visible.
 			$existing = $this->mDb->getOne( "SELECT COUNT(*) FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = 'EXCL'", [ $this->mContentId ] );
 			if( empty( $existing ) ) {
-				$this->upsertSingleXref( 'general', 'EXCL', '1' );
+				$this->upsertSingleXref( 'general', 'EXCL', '0' );
 			}
 		}
 
@@ -410,35 +457,39 @@ class Map extends LibertyMime
 							$finalName = $correctedName;
 						}
 					}
-					// SYMBOLSET/FONTSET use relative paths in every mapfile in this project
-					// ("../symbols/font.list"), resolved by MapServer against wherever the file
-					// physically sits - fine for the old registry (always mapper/map/, a fixed
-					// offset from mapper/symbols/), broken for a Map's attachment storage
-					// location (varies per content_id, no stable relative offset back).
-					// Rewritten to absolute paths so the stored copy is self-sufficient
+					// SYMBOLSET/FONTSET/TEMPLATE/HEADER/FOOTER/EMPTY/IMAGE all use relative
+					// paths in every mapfile in this project ("../symbols/font.list",
+					// "../html/form.html", "../theme/noFeature.html", ...), resolved by
+					// MapServer against wherever the file physically sits - fine for the old
+					// registry (always mapper/map/, a fixed one-level offset from mapper/ itself
+					// for every one of these), broken for a Map's attachment storage location
+					// (varies per content_id, no stable relative offset back - found live:
+					// osmcarto_gb.map's WEB TEMPLATE "../html/form.html" failed with
+					// "msReturnPage(): Unable to access file" the same way SYMBOLSET/FONTSET
+					// did). Rewritten to absolute paths so the stored copy is self-sufficient
 					// regardless of where it physically ends up - same allowed correction as the
 					// filename/mimetype fixes above.
-					$this->fixSymbolPaths( STORAGE_PKG_PATH.$destBranch.$finalName );
+					$this->fixRelativePaths( STORAGE_PKG_PATH.$destBranch.$finalName );
 				}
 			}
 		}
 	}
 
-	/** Rewrite relative SYMBOLSET/FONTSET directives to absolute paths pointing at the real,
-	 * fixed mapper/symbols/ location - see storeParsedMapFileDetails()'s call site. */
-	private function fixSymbolPaths( string $pFilePath ): void {
+	/** Rewrite every relative "../..." path this project's mapfiles reference (symbols, HTML
+	 * templates, theme fragments, reference images) to an absolute path anchored at
+	 * MAPPER_PKG_PATH - every one of these is one level up from wherever the mapfile itself
+	 * normally sits (mapper/map/), so stripping the leading ../ and prefixing MAPPER_PKG_PATH
+	 * reconstructs the correct real location regardless of where the file's own copy is stored.
+	 * See storeParsedMapFileDetails()'s call site. */
+	private function fixRelativePaths( string $pFilePath ): void {
 		$content = file_get_contents( $pFilePath );
 		if( $content === false ) {
 			return;
 		}
 		$fixed = preg_replace_callback(
-			'/^(\s*(?:SYMBOLSET|FONTSET)\s+")([^"]+)(")/mi',
+			'/^(\s*(?:SYMBOLSET|FONTSET|TEMPLATE|HEADER|FOOTER|EMPTY|IMAGE)\s+")(\.\.\/[^"]+)(")/mi',
 			function( $m ) {
-				$path = $m[2];
-				if( $path === '' || $path[0] === '/' ) {
-					return $m[0];
-				}
-				return $m[1].MAPPER_PKG_PATH.'symbols/'.basename( $path ).$m[3];
+				return $m[1].MAPPER_PKG_PATH.preg_replace( '#^\.\./#', '', $m[2] ).$m[3];
 			},
 			$content
 		);

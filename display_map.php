@@ -30,27 +30,28 @@ $gBitSystem->setBrowserTitle( 'Display Mapsever map');
 $contentId = !empty( $_GET['content_id'] ) && ctype_digit( (string)$_GET['content_id'] ) ? (int)$_GET['content_id'] : null;
 $rawMapset = ( !empty( $_GET['mapset'] ) && preg_match( '/^[A-Za-z0-9_-]+$/', $_GET['mapset'] ) ) ? $_GET['mapset'] : '';
 
-$map = null;
-if( $contentId ) {
-	// content_id path - protector-aware (per-item role gating actually enforced via
-	// Map::load(), see protector/CLAUDE.md), no registry-style anonymous soft-fallback (that's
-	// specific to the registry's shared 'test' demo below, not a per-object concept here).
-	$resolved = mapper_resolve_mapset( $contentId, '' );
-	if( $resolved === null ) {
-		$gBitSystem->fatalError( KernelTools::tra( 'The requested map could not be found' ), null, null, HttpStatusCodes::HTTP_NOT_FOUND );
-	}
-	[ 'mapset' => $mapset, 'resolvedKey' => $resolvedMapsetKey, 'map' => $map ] = $resolved;
-	$map->verifyViewPermission();
-} else {
-	// Explicitly requested and not found - standard site "not found" error, same as any other
-	// package (see wiki/backlinks.php etc), instead of loading the map viewer at all. An empty
-	// $rawMapset instead resolves to the registry's own default (see resolve_mapset_inc.php).
-	$resolved = mapper_resolve_mapset( null, $rawMapset );
-	if( $resolved === null ) {
-		$gBitSystem->fatalError( KernelTools::tra( 'The requested map could not be found' ), null, null, HttpStatusCodes::HTTP_NOT_FOUND );
-	}
-	[ 'mapset' => $mapset, 'resolvedKey' => $resolvedMapsetKey ] = $resolved;
+// Single resolver call regardless of which param was given - mapper_resolve_mapset() itself
+// tries a real Map's slug against $rawMapset before falling through to the registry (see
+// resolve_mapset_inc.php), so $map can come back set even when only $rawMapset was passed.
+// Found live: an earlier version of this file only extracted 'map' in a separate
+// content_id-only branch, so a slug match via the pretty /mapper/map/<name> URL silently
+// skipped verifyViewPermission() (the protector-aware check) entirely and fell through to the
+// registry's blanket permission check instead - a real per-item permission bypass, not just a
+// cosmetic mismatch. display_map2.php never had this bug (always used a single call site).
+$resolved = mapper_resolve_mapset( $contentId, $rawMapset );
+if( $resolved === null ) {
+	$gBitSystem->fatalError( KernelTools::tra( 'The requested map could not be found' ), null, null, HttpStatusCodes::HTTP_NOT_FOUND );
+}
+[ 'mapset' => $mapset, 'resolvedKey' => $resolvedMapsetKey, 'map' => $map ] = $resolved;
 
+if( $map ) {
+	// Real Map object (explicit content_id, or a slug match) - protector-aware (per-item role
+	// gating actually enforced via Map::load(), see protector/CLAUDE.md), no registry-style
+	// anonymous soft-fallback (that's specific to the registry's shared 'test' demo below, not
+	// a per-object concept here).
+	$map->verifyViewPermission();
+	$contentId = $map->mContentId;
+} else {
 	// 'test' is the public package demo mapset (bit_p_v_map_mapper, basic/anonymous) - everything
 	// else (iom, meridian, minisc, opmplc, vmdvec) is real OS-licensed data or private family
 	// genealogy data, gated behind bit_p_view_mapper (registered).
