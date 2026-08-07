@@ -9,6 +9,19 @@
 #navigation, #extra { display: none; }
 #wrapper { width: 100%; padding-left: 0; padding-right: 0; float: none; }
 #leafletMap { height: 80vh; width: 100%; }
+:root {
+	--overview-w: 150px;
+	--overview-h: {$overviewHeight}px;
+}
+/* 2/3 size on phones (150px -> 100px) - keeps the same ratio as desktop so each mapset's
+   per-extent overviewHeight (computed for a 150px-wide box) still fits correctly, just smaller. */
+@media ( max-width: 767px ) {
+	:root {
+		--overview-w: 100px;
+		--overview-h: calc( {$overviewHeight}px * 0.667 );
+	}
+}
+.mapper-overview-box { width: var(--overview-w); height: var(--overview-h); }
 </style>
 
 <div class="floaticon">{bithelp}</div>
@@ -111,9 +124,7 @@
 	var OverviewControl = L.Control.extend( {
 		options: { position: "bottomleft" },
 		onAdd: function( map ) {
-			var container = L.DomUtil.create( "div", "leaflet-bar" );
-			container.style.width = "150px";
-			container.style.height = "{$overviewHeight}px";
+			var container = L.DomUtil.create( "div", "leaflet-bar mapper-overview-box" );
 			L.DomEvent.disableClickPropagation( container );
 			L.DomEvent.disableScrollPropagation( container );
 			setTimeout( function() {
