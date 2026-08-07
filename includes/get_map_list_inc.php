@@ -8,16 +8,18 @@
  * @subpackage functions
  */
 
-use Bitweaver\Mapper\BitMapper;
+use Bitweaver\Mapper\Map;
 
 global $gContent;
 global $gLibertySystem;
 
 if( empty( $gContent ) || !is_object( $gContent ) ) {
-	$gContent = new BitMapper();
+	$gContent = new Map();
 }
 
-$contentSelect = empty( $_REQUEST['content_type'] ) ? NULL : $_REQUEST['content_type'];
+// list_maps.php only ever lists Map objects - not left open to $_REQUEST['content_type']
+// like a generic cross-type admin listing would be.
+$contentSelect = MAPPER_CONTENT_TYPE_GUID;
 
 // get_content_list_inc doesn't use $_REQUEST parameters as it might not be the only list in the page that needs sorting and limiting
 $pListHash = [
