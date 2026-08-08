@@ -38,16 +38,11 @@
 				</div>
 			</div>
 
-			<div class="form-group">
-				<div class="col-sm-offset-2 col-sm-6">
-					<div class="checkbox">
-						<label>
-							<input type="checkbox" name="excl" value="1" checked>
-							{tr}Exclusive layer selection (radio buttons, not checkboxes){/tr}
-						</label>
-					</div>
-				</div>
-			</div>
+			{* Exclusive-layer-selection (EXCL) isn't set here any more - the mapfile's own
+			"# MAPPER: EXCL=..." comment still wins at upload time (works for both single-file
+			and batch-archive imports, unlike a form checkbox which can't apply correctly across
+			many unrelated mapfiles at once), and it's editable afterwards through the standard
+			xref group tabs on the edit page regardless. *}
 
 			<div class="form-group">
 				<div class="col-sm-offset-2 col-sm-6">

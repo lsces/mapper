@@ -14,7 +14,8 @@
 	<caption>{tr}Available Maps{/tr}</caption>
 	<tr>
 		<th>{smartlink ititle="Title" isort=title page=$page user_id=$user_id idefault=1}</th>
-		<th>{tr}Author{/tr}</th>
+		<th>{tr}Projection{/tr}</th>
+			<th>{tr}Author{/tr}</th>
 		<th>{tr}Most Recent Editor{/tr}</th>
 		<th>&nbsp;</th>
 	</tr>
@@ -29,6 +30,7 @@
 				<a title="{tr}Leaflet viewer{/tr}" href="{$smarty.const.MAPPER_PKG_URL}display_map2.php?content_id={$item.content_id}">{biticon ipackage="icons" iname="zoom-original" iexplain="Leaflet viewer"}</a>
 				{$item.display_link}
 			</td>
+			<td>{$item.projection|escape}</td>
 			<td>{displayname real_name=$item.creator_real_name user=$item.creator_user}</td>
 			<td>{displayname real_name=$item.modifier_real_name user=$item.modifier_user}</td>
 			<td>{$item.last_modified|bit_short_date}</td>

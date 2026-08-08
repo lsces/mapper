@@ -296,15 +296,17 @@ class Map extends LibertyMime
 	private function parseMapFile( string $pSourceFile ): array {
 		$lines = file( $pSourceFile, FILE_IGNORE_NEW_LINES );
 		if( !$lines ) {
-			return [ 'name' => null, 'extent' => null, 'shapePath' => null, 'excl' => null, 'layers' => [] ];
+			return [ 'name' => null, 'extent' => null, 'shapePath' => null, 'excl' => null, 'projection' => null, 'layers' => [] ];
 		}
 
-		$name = $extent = $shapePath = $excl = null;
+		$name = $extent = $shapePath = $excl = $projection = null;
 		$layers = [];
 		$depth = 0;
 		$inLayer = false;
 		$layerDepth = 0;
 		$currentLayer = null;
+		$inProjection = false;
+		$projectionDepth = 0;
 
 		foreach( $lines as $line ) {
 			$trim = trim( $line );
@@ -322,6 +324,17 @@ class Map extends LibertyMime
 				continue;
 			}
 
+			// PROJECTION's own body is bare quoted PROJ.4 param strings, one per line
+			// ("init=epsg:27700") - these match neither the bare-keyword nor KEYWORD-value
+			// patterns below (no leading A-Z identifier), so they need catching here, before
+			// falling through to the keyword checks. Only the first PROJECTION block found (the
+			// MAP-level one, not a per-layer override) is captured - see !$inLayer below.
+			if( $inProjection && $depth === $projectionDepth && $trim[0] === '"' ) {
+				$projLine = trim( $trim, "\"' \t" );
+				$projection = $projection === null ? $projLine : $projection.' '.$projLine;
+				continue;
+			}
+
 			if( preg_match( '/^([A-Z_]+)\s*$/', $trim, $m ) ) {
 				$keyword = $m[1];
 				if( $keyword === 'MAP' ) {
@@ -336,6 +349,9 @@ class Map extends LibertyMime
 						$currentLayer = null;
 						$inLayer = false;
 					}
+					if( $inProjection && $depth === $projectionDepth ) {
+						$inProjection = false;
+					}
 					if( $depth > 0 ) { $depth--; }
 					continue;
 				}
@@ -344,6 +360,9 @@ class Map extends LibertyMime
 					$inLayer = true;
 					$layerDepth = $depth;
 					$currentLayer = [ 'name' => null, 'type' => null, 'status' => null, 'group' => null, 'data' => null ];
+				} elseif( $keyword === 'PROJECTION' && !$inLayer && $projection === null ) {
+					$inProjection = true;
+					$projectionDepth = $depth;
 				}
 				continue;
 			}
@@ -372,13 +391,13 @@ class Map extends LibertyMime
 			}
 		}
 
-		return [ 'name' => $name, 'extent' => $extent, 'shapePath' => $shapePath, 'excl' => $excl, 'layers' => $layers ];
+		return [ 'name' => $name, 'extent' => $extent, 'shapePath' => $shapePath, 'excl' => $excl, 'projection' => $projection, 'layers' => $layers ];
 	}
 
 	/** Write the already-parsed details (see parseMapFile()) into the xref tables and retag the
 	 * stored file's mime type - pure DB work, no file access, safe to run after store(). */
 	private function storeParsedMapFileDetails( array $pParsed, array $pParamHash ): void {
-		[ 'name' => $name, 'extent' => $extent, 'shapePath' => $shapePath, 'excl' => $excl, 'layers' => $layers ] = $pParsed;
+		[ 'name' => $name, 'extent' => $extent, 'shapePath' => $shapePath, 'excl' => $excl, 'projection' => $projection, 'layers' => $layers ] = $pParsed;
 
 		if( $extent !== null ) {
 			$parts = preg_split( '/\s+/', $extent );
@@ -392,6 +411,18 @@ class Map extends LibertyMime
 
 		if( $shapePath !== null ) {
 			$this->upsertSingleXref( 'general', 'SHPPATH', $shapePath );
+		}
+
+		if( $projection !== null ) {
+			// "init=" is PROJ.4's own load-from-database syntax, not the projection's identity -
+			// strips down to a clean "epsg:27700" for XKEY(32). A raw, fully-spelled-out PROJ.4
+			// string (no "init=" shorthand - e.g. "+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996...
+			// +ellps=airy +datum=OSGB36 +units=m +no_defs") has no short form and can easily run
+			// 100+ chars, well past XKEY's limit - XKEY stays blank in that case rather than
+			// truncating something meaningless, and the full original string always goes in
+			// XKEY_EXT(250) instead, comfortable for even a complex explicit definition.
+			$shortProjection = preg_match( '/^init=(.+)$/i', $projection, $m ) ? $m[1] : '';
+			$this->upsertSingleXref( 'general', 'PROJECTION', $shortProjection, true, substr( $projection, 0, 250 ) );
 		}
 
 		// The mapfile's own "# MAPPER: EXCL=..." comment (if present) wins over the upload
@@ -522,11 +553,15 @@ class Map extends LibertyMime
 
 	/** Update-in-place for a multiple=0 xref item - looks up any existing row for
 	 * (content_id, item) first so a re-upload updates rather than duplicates it.
-	 * $pUseXkey: short scalar values (EXCL, OVERVIEWHEIGHT - template 'value' in schema_inc.php)
-	 * go straight in XKEY (VARCHAR(32), avoids a blob read entirely) instead of the DATA blob -
-	 * only safe for values that actually fit; EXTENT's JSON and SHPPATH's path both exceed 32
-	 * chars, so those keep using DATA (the default, $pUseXkey=false). */
-	private function upsertSingleXref( string $pGroup, string $pItem, string $pValue, bool $pUseXkey = false ): void {
+	 * $pUseXkey: short scalar values (EXCL, OVERVIEWHEIGHT, PROJECTION - template 'value' in
+	 * schema_inc.php) go straight in XKEY (VARCHAR(32), avoids a blob read entirely) instead of
+	 * the DATA blob - only safe for values that actually fit; EXTENT's JSON and SHPPATH's path
+	 * both exceed 32 chars, so those keep using DATA (the default, $pUseXkey=false).
+	 * $pXkeyExt: optional XKEY_EXT(250) value alongside XKEY - the 'value' template's own
+	 * "Notes" field, used by PROJECTION to hold the full original string (a raw multi-param
+	 * PROJ.4 definition can easily exceed XKEY's 32 chars even when XKEY itself holds a clean
+	 * short form, or is left blank because there's no short form at all). */
+	private function upsertSingleXref( string $pGroup, string $pItem, string $pValue, bool $pUseXkey = false, ?string $pXkeyExt = null ): void {
 		$existingXrefId = $this->mDb->getOne( "SELECT `xref_id` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = ?", [ $this->mContentId, $pItem ] );
 		$xrefHash = [
 			'content_id' => $this->mContentId,
@@ -534,6 +569,9 @@ class Map extends LibertyMime
 			'xkey'       => $pUseXkey ? $pValue : $pItem,
 			'xorder'     => 0,
 		];
+		if( $pXkeyExt !== null ) {
+			$xrefHash['xkey_ext'] = $pXkeyExt;
+		}
 		if( !$pUseXkey ) {
 			$xrefHash['edit'] = $pValue;
 		}

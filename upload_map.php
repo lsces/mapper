@@ -61,7 +61,6 @@ if( !empty( $_FILES['map_file']['name'] ) ) {
 			'data'             => $_REQUEST['data'] ?? '',
 			'_files_override'  => [ 'map_file' => $_FILES['map_file'] ],
 			'user_id'          => $gBitUser->mUserId,
-			'excl'             => !empty( $_REQUEST['excl'] ),
 		];
 		if( !$map->store( $pParamHash ) ) {
 			$errors = $map->mErrors;
