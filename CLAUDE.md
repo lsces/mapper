@@ -1,19 +1,11 @@
 # Mapper Package — Developer Notes
 
+Session log — decisions, bugs found, and why things are the way they are. For how the package
+actually works today (architecture, xref schema, tile caching, permissions, deployment), see
+`MANUAL.md` instead; this file doesn't repeat that, only the history behind it.
+
 MapServer-based GIS viewer, ported from a pre-PHP7 codebase (2026-07-28/29). Stock MapServer
 JS frameset client (`html/map.html` + child frames) driving CGI requests to `/cgi-bin/mapserv`.
-
-## Frame architecture — two independent JS contexts
-The viewer is a classic frameset: top-level page (`display_map.php` → `map.html`) plus child
-frames (`ScriptFrame`, `NaviFrame`, `FormFrame`, `ToolFrame`, `LinkFrame`, `MapFrame`, etc).
-**`scripts/param1.js` loads independently in both the top-level page and `html/script.php`
-(ScriptFrame's own document)** — two separate copies of its globals, not one shared context.
-Anything that needs to reach the actual map/navi logic must be set from inside `script.php`,
-not from the top-level page — see `[[project_mapper_osrm_revival]]` if this trips anyone up.
-
-`toolbar.js` and `common.js` both load directly into `script.php` (ScriptFrame's own document) —
-they share one plain JS scope, no cross-frame access needed between them. Files in *other*
-frames (`map_init.html`, `navi.html`, etc) reach these via `t = parent.ScriptFrame` then `t.<name>`.
 
 ## `document.write()` elimination — done 2026-07-29
 The original codebase built nearly every page in `html/`, `theme/noFeature.html`, and
@@ -27,98 +19,6 @@ backward-compat parsing quirk that `insertAdjacentHTML` doesn't trigger. Fixed b
 **deliberately left as-is** — it runs on an already-loaded document (implicit `document.open()`
 replacement), not mid-network-parse, so it doesn't have the hazard this cleanup targeted.
 
-## Frame load-choreography chain
-Every child iframe's *initial* `src` points at a `_blank.html` variant — a neutral placeholder
-before the server-resolved mapset config exists. Verified reachable end-to-end:
-1. `map_blank.html`'s `Load1()` sets `ScriptFrame` → `parent.scriptURL` (i.e. `script.php`).
-2. `script.php` resolves the mapset, then redirects `FormFrame`→`map_init.html`,
-   `ToolFrame`→`tool.html`, `NaviFrame`→`navi.html`, `LinkFrame`→`link.html`.
-3. `map_init.html` auto-submits a form to the MapServer CGI. The CGI response body **is**
-   `html/form.html` — referenced as `WEB TEMPLATE` in `map/*.map`, won't turn up in a plain grep.
-4. `form.html`'s `Load3()` redirects `MapFrame`→map image and `LegendFrame`→`legend.html`.
-
-None of the 7 `_blank.html` files are dead leftovers — don't remove any without replacing this
-whole choreography.
-
-**Testing gotchas**: the browser's plain reload/refresh button mangles this choreography (looks
-like a broken/stale render even with fresh code deployed) — reload via the address bar instead.
-Also: `.php`-served changes show up cleanly on next load, but plain `.html` files (`map.html`,
-`navi.html`, etc) need a hard browser cache wipe — check which type a "fix isn't showing" is
-before assuming the deploy failed.
-
-## theme/ and modules/ — also fully reachable
-- **`theme/` (5 files)** — referenced by `map/*.map` via MapServer's own `TEMPLATE`/`HEADER`/
-  `FOOTER`/`EMPTY` directives, genuinely can't be ordinary Smarty `.tpl`.
-- **`modules/` (5 files)** — follow the standard Bitweaver `{bitmodule}` convention (gated by
-  `$modMap`, unconditionally `true` in `display_map.php`).
-
-## Selectable mapsets (script.php / mapsets_inc.php)
-`html/script.php` resolves which map to load, server-side, before `param1.js` runs:
-1. Reads `includes/mapsets_inc.php` — package-default registry (public; just `test` demo).
-2. Merges in `/etc/webstack/domains/{$gBitDbName}/mapper_mapsets.php` if present — private,
-   site-specific extension. Keyed off `$gBitDbName` (resolves identically desktop vs servers).
-3. Resolves `?mapset=` against the merged registry, falling back to the resolved default.
-4. Emits `mapPfad`/`layerList`/`layerAlias`/`layerVisible`/`layerIsQueryable`/`layerLink`/
-   `fullExtent` as inline `json_encode()` vars. `param1.js` no longer declares any of these itself.
-
-Deliberate stopgap, not the intended end state — the real fix is a DB-backed map catalog
-(`LibertyContent` objects), not built yet.
-
-## `scriptURL`/`styleURL` — must both come from `html_head_inc.tpl`
-Both required — `script.php`'s inline JS reads `parent.styleURL` before its own `param1.js` has
-loaded. Trimming to just `scriptURL` produces a silent `href="undefined"` that 302-loops into a
-broken Overview/blank map, easy to misread as caching/mapset bug since nothing throws.
-
-## MAPPER_PKG_PATH / MAPPER_PKG_URL
-Auto-defined by `BitSystem::registerPackage()` as `BIT_ROOT_PATH . basename($path)` — always
-environment-correct with zero extra plumbing. No `env.js` file needed.
-
-## storage/maps vs storage/mapper — different rules
-- `storage/mapper/` — source raster/vector data (`SHAPEPATH`). Server-side only, nginx `deny all`s it.
-- `storage/maps/` — mapserv-generated output tiles (`IMAGEPATH`/`IMAGEURL`). **Is** served by
-  nginx. Desktop's flat checkout needs `storage/maps → {domain}/storage/maps`, handled by
-  `switch-site`.
-- Both are excluded from the nightly `firebird-backup`/`firebird-restore` DR sync — see the
-  DR-sync section below for why `mapper` needed adding the hard way.
-
-## OS data library — storage tiering policy (decided 2026-07-30)
-See `[[project_mapper_genealogy_goal]]` in memory for the full dataset list. Three-tier policy:
-- **`srv9:/media3/OS-Data/`** — the full archive, every dataset. Not a live serving path.
-- **`storage/mapper/<dataset>/`** (real per-site storage) — reserved for datasets wired into a
-  *kept* mapset. Symlink to the archive while a dataset is still being evaluated; promote to a
-  real copy only once kept.
-- **srv10** gets only whichever datasets are actually kept — never the speculative full library.
-- **Desktop follows the same pattern**: `/home/media1/OS-Data/` is desktop's equivalent of srv9's
-  `/media3/OS-Data/`, with `storage/mapper/<name>` symlinked in.
-
-## Mapfile / mapserver.conf — not git-tracked, manual per environment
-Every site-specific mapfile plus `/etc/mapserver.conf` are manual symlinks into
-`/etc/webstack/mapserver/` — deliberately outside the public `mapper` repo (mapfiles reference
-private bulk map data). Must be recreated by hand on every new environment.
-`mapserver.conf`'s `MS_MAP_PATTERN` (`^/srv/website/[^/]+/mapper/`) covers desktop, server-shared
-(`_bw5`), and any per-site symlink.
-
-## Bulk map data — never git-tracked
-`data/` and `dataIOM/` are `.gitignore`'d, same as `storage/attachments`. A small curated public
-subset (readme/license text, index shapefiles, one public IOM1880 raster) stays tracked.
-
-## MapServer CGI semantics (verify empirically, don't assume)
-- `imgbox`/`imgxy` (drag-zoom/pan) are **pixel-space** — `mapserv` converts using `mapsize` also
-  submitted with the form. Don't pre-convert to geographic coordinates ("nothing moves", no error).
-- `mapext` is the *target* extent; `imgext` is the *previous frame's* extent (click-to-geo math) —
-  a different field, confirmed the hard way via a render that silently ignored `imgext`.
-- The `<!-- MapServer Template -->` magic line is required only for `WEB TEMPLATE`, `LAYER
-  HEADER`/`FOOTER`/`TEMPLATE`, and `WEB EMPTY` files — not plain browser-loaded files, not
-  `LEGEND TEMPLATE` (different fragment-substitution path).
-- Given a mismatched extent/`mapsize` aspect ratio, MapServer's default is `contain`-style —
-  expands the *looser* axis, never crops. See the cover-fit section below for why that's
-  sometimes the wrong default here.
-- `mode=map` CGI testing never exercises `IMAGEPATH`/`WEB TEMPLATE`/`REFERENCE` at all — only
-  `mode=browse` does. A mapfile that renders fine under `mode=map` on desktop can still break
-  `mode=browse` on a real server. Always test the real deploy target's full `mode=browse` path,
-  as the `nginx` user (`sudo -u nginx REQUEST_METHOD=... QUERY_STRING=... MS_MAP_PATTERN=...
-  mapserv` — env vars must be passed explicitly through `sudo`, `-E` alone isn't enough).
-
 ## Meridian vector mapset (`meridian_2014`/`_2016`) — wired up 2026-07-30
 GB-wide vector (roads by class, rail, settlements, boundaries, lakes, woodland, coastline,
 rivers). Layers: `woodland_region`, `lake_region`, `county_region` (off), `coast_ln_polyline`,
@@ -126,11 +26,10 @@ rivers). Layers: `woodland_region`, `lake_region`, `county_region` (off), `coast
 `b_road_polyline` (off), `minor_rd_polyline` (off), `settlemt_point`, `station_point` (off). The
 33k-record cartotext label layer was deferred.
 
-Two MapServer 8.6.5 compatibility gotchas, relevant to any future mapfile: `MAP`-level
-`TRANSPARENT` is no longer valid, and `WEB`-level `MINSCALE`/`MAXSCALE` were removed in favour of
-per-`LAYER` `MAXSCALEDENOM`/`MINSCALEDENOM`. `settlemt_point`/`station_point` needed
-`MAXSCALEDENOM 300000` — without it, whole-GB rendering of all 23,868 points produces a solid
-black smear.
+MapServer 8.6.5 dropped MAP-level `TRANSPARENT` and WEB-level `MINSCALE`/`MAXSCALE` (per-`LAYER`
+`MAXSCALEDENOM`/`MINSCALEDENOM` now, see `MANUAL.md`'s CGI-semantics section) —
+`settlemt_point`/`station_point` needed `MAXSCALEDENOM 300000` specifically, found live as a
+solid black smear across the whole-GB render without it.
 
 Data provenance: no download-date metadata, but all 4,853 files share a tight mtime window
 (5 June 2014) — reflected as "circa 2014" in the title, not stated as fact. A 2016 edition was
@@ -217,9 +116,9 @@ Resolved a fallback mapset key for the page **title** but passed the **raw, unva
 `$_GET['mapset']` to the `scriptURL`-feeding variable. Since `script.php` is the JS *engine* (not
 just content), a stale key broke the whole frame choreography rather than falling back
 gracefully. Fixed by resolving+validating once in `display_map.php` and passing the *resolved*
-key downstream; an unresolvable explicit `?mapset=` now gets `HTTP_NOT_FOUND` before any iframe
-is created. **Lesson**: `script.php` isn't ordinary content — fix belongs one layer up, in
-whatever assigns its inputs, not by intercepting `script.php` itself.
+key downstream. **Lesson**: `script.php` isn't ordinary content — fix belongs one layer up, in
+whatever assigns its inputs, not by intercepting `script.php` itself. (Superseded by the fuller
+resolver rewrite on 2026-08-07, see below — kept for the lesson.)
 
 ## mapper permissions — never actually wired up, found + fixed, 2026-07-31
 5 permissions were declared in `admin/schema_inc.php` but never `verifyPermission()`-checked
@@ -274,44 +173,32 @@ symlinks into the archive rather than real copies. Fixed both scripts (`--exclud
 --exclude=mapper`), deployed to both servers.
 
 Used the recovery as an opportunity to move the whole OS-Data library off desktop's root disk
-(was 81% full) onto `/home/media1` (matching srv9's `/media3` tiering pattern — see the storage
-tiering policy above). `lsces/storage/mapper/<name>` is symlinked into `/home/media1/OS-Data/<name>`
-for every dataset (every mapfile's `SHAPEPATH` hardcodes the `lsces` path, so these symlinks are
-functionally required). `bitweaver5/storage/mapper` symlinks **directly** to `/home/media1/OS-Data`
-(not through `lsces` — mapper's data has effectively become site-independent). Symlink target
-names don't always match the mapfile-facing name (e.g. `meridian_2016` → `merid2_essh_gb_2016`) —
-always check the mapfile's own `SHAPEPATH` for the exact expected subfolder name.
+(was 81% full) onto `/home/media1` (matching srv9's `/media3` tiering pattern: the full archive
+lives on the big disk, `storage/mapper/<dataset>` symlinks in only for datasets wired into a kept
+mapset, srv10 gets only whichever datasets are actually kept). Symlink target names don't always
+match the mapfile-facing name (e.g. `meridian_2016` → `merid2_essh_gb_2016`) — always check the
+mapfile's own `SHAPEPATH` for the exact expected subfolder name.
 
 `storage/maps/` (generated tile cache) also had no cleanup mechanism — added
 `/etc/webstack/cron.daily/mapper-maps-cleanup`, deletes files older than 2 days (each render is
 uniquely-named and never revisited, so short retention is safe).
 
 ## srv9 storage/mapper — meridian_2014/iom_years converted to symlinks, 2026-08-03
-Found two lingering physical directories under srv9's `storage/mapper/` — `meridian_2014` and
-`iom_years` — left over from before the archive-symlink pattern above was established; every
-other mapset there was already correctly symlinked, and desktop's `storage/mapper` was already
-symlinks throughout. Verified byte-identical (`diff -rq`/`md5sum`) before touching anything:
-- `meridian_2014` duplicated data already archived under `/media3/OS-Data/merid2_essh_gb_2014`
-  (same naming-mismatch pattern as `meridian_2016` above — accepted as-is, not worth unifying
-  across the whole set) — just needed the physical copy removed and a symlink added.
-- `iom_years` had no archive copy on srv9 at all, only on desktop's `/home/media1/OS-Data/`.
-  Copied into **both** `/media3/OS-Data/` and `/media4/OS-Data/` (srv9's two independent OS-Data
-  backup disks — confirmed genuinely separate via `df`/`mount`, not one symlinked to the other)
-  for the same redundancy the meridian sets already had, verified both copies byte-identical,
-  then symlinked `storage/mapper/iom_years` → `/media3/OS-Data/iom_years`.
-
-srv9's `storage/mapper/` now matches desktop exactly — symlinks throughout, no physical
-duplicates. Not replicated to srv10 — srv10 has no `/media3`/`/media4` (single-disk hardware,
-real copies not symlinks there, per the srv10 cherry-pick list below).
+Found two lingering physical directories under srv9's `storage/mapper/` left over from before the
+archive-symlink pattern above was established. Verified byte-identical (`diff -rq`/`md5sum`)
+before converting: `meridian_2014` duplicated data already archived under
+`/media3/OS-Data/merid2_essh_gb_2014`; `iom_years` had no archive copy on srv9 at all (only on
+desktop), copied into both `/media3/` and `/media4/` (srv9's two independent OS-Data backup
+disks) for the same redundancy the other sets already had. srv9's `storage/mapper/` now matches
+desktop exactly — symlinks throughout, no physical duplicates. Not replicated to srv10 (no
+`/media3`/`/media4` there — single-disk hardware, real copies not symlinks).
 
 ## Reference thumbnails (`gb_overview.png` + `refmap_IOM1880.png`), 2026-08-02
 Both resized 200x160/100x109 → 320x320 and rebuilt for legibility (old ones were downscaled
 detailed rasters, illegible at thumbnail size). `gb_overview.png`: meridian's `coast_ln_polyline`
 + thin `county_region` outlines, vector-rendered fresh, moved from the public `mapper` repo to
-`/etc/webstack/mapserver/` (private — only private mapsets ever used it) with all referencing
-mapfiles switched to an absolute path. `refmap_IOM1880.png`: re-rendered from the same
-public-safe `IOM1880bw.tif` (kept public deliberately — don't swap in private data for this one).
-`mod_overview.tpl`'s pre-JS fallback height updated `120px` → `384px` to match.
+`/etc/webstack/mapserver/` (private — only private mapsets ever used it). `refmap_IOM1880.png`:
+re-rendered from the same public-safe `IOM1880bw.tif` (kept public deliberately).
 
 **Gotcha worth remembering for any future fixed-size reference image from a non-matching-aspect
 source**: `gdalwarp -ts <w> <h>` without a matching `-te` stretches rather than pads — breaks
@@ -323,425 +210,230 @@ composite onto a white background in a second pass.
 ## OSM-derived mapsets (`osm_iom`, `osm_gb`) — built 2026-08-03
 First mapsets built from raw OpenStreetMap data rather than OS products. Source is the
 self-hosted `britain-and-ireland-latest.osm.pbf` on srv9 (`/srv/osm`, kept current by
-`/etc/webstack/cron.daily/osm-update` for the IOM clip only — **`osm_gb` is a one-off build, not
-in the nightly cron**, per explicit decision not to rebuild the whole-GB gpkg nightly). GDAL's
-OSM driver doesn't pre-split by theme like the OS vector products do — it exports 5 generic
-geometry-type layers (`points`/`lines`/`multilinestrings`/`multipolygons`/`other_relations`) with
-real OSM tags as columns, so themed layers (`Water`, `Woodland`, `Building`, `Waterway`, `Road`,
-`Place`) are `FILTER` expressions against those tag columns rather than separate source layers.
-`osm_gb.map` reused `osm_iom.map`'s exact layer/filter/style structure, plus the MAXSCALEDENOM
-tiers already proven safe at GB scale by `opmplc_2020.map`/`vmdvec_2020.map` (Water 300000,
-Woodland 300000, Road 150000, Building 20000, Place 200000) — whole-GB render with all layers
-came back in 0.3-0.5s, no smear/timeout issues.
+`/etc/webstack/cron.daily/osm-update` for the IOM clip only — `osm_gb` is a one-off build, not in
+the nightly cron). GDAL's OSM driver doesn't pre-split by theme like the OS vector products do —
+it exports 5 generic geometry-type layers with real OSM tags as columns, so themed layers
+(`Water`, `Woodland`, `Building`, `Waterway`, `Road`, `Place`) are `FILTER` expressions against
+those tag columns. Whole-GB render with all layers came back in 0.3-0.5s using the same
+`MAXSCALEDENOM` tiers already proven safe by `opmplc_2020.map`/`vmdvec_2020.map`.
 
 **Coastline layer, both mapsets**: OS vector products don't carry real coastline geometry, so
-this uses the OSM `water-polygons-split-4326` extract (osmdata.openstreetmap.de) instead —
-downloaded, clipped to the mapset's bbox in EPSG:4326, reprojected to EPSG:27700 via `ogr2ogr
--clipsrc`, appended as its own `water_polygons` GeoPackage layer, styled as a filled polygon (not
-a line, unlike `meridian`'s `coast_ln_polyline`) so land shows as a natural gap in a solid sea
-fill.
+this uses the OSM `water-polygons-split-4326` extract instead — clipped, reprojected, styled as a
+filled polygon so land shows as a natural gap in a solid sea fill.
 
 **Tile-seam artifact, found + fixed for GB**: the water-polygons dataset is genuinely split into
-a world-wide tile grid (hence the filename) — invisible in most viewers but our `Coastline`
-layer's `OUTLINECOLOR` styling drew every tile-internal seam as a visible line, not just real
-coastlines. Barely noticeable for IOM (small bbox, touches only 1-2 tiles) but a full checkerboard
-across the sea at GB scale (323 raw tile features). Fixed at the data level, not by hiding the
-outline: `ogr2ogr -dialect sqlite -sql "SELECT ST_Union(geom) AS geom FROM water_polygons"`
-dissolves all tiles into one contiguous MultiPolygon (1 feature) before it ever reaches the
-mapfile — real coastline boundaries stay outlined, tile seams vanish because they're no longer
-separate polygon edges. ~1.5 min for GB's 323 features.
+a world-wide tile grid — invisible in most viewers but the `Coastline` layer's `OUTLINECOLOR`
+styling drew every tile-internal seam as a visible line at GB scale (323 raw tile features).
+Fixed at the data level: `ogr2ogr -dialect sqlite -sql "SELECT ST_Union(geom) AS geom FROM
+water_polygons"` dissolves all tiles into one contiguous MultiPolygon before it ever reaches the
+mapfile.
 
-**Reference thumbnails, both mapsets** (`refmap_iom_osm.png`, `refmap_gb_osm.png`, in the public
-`mapper` repo's `graphics/`): rendered via classic CGI `mode=map` (not WMS — `osm_iom.map`/
-`osm_gb.map` have no `wms_enable_request` metadata, confirmed via a real `ServiceException` before
-switching approach) with only the `Coastline` layer active, at the mapset's `REFERENCE` `SIZE`/
-`EXTENT`. This leaves the true void — outside the clipped data extent, and the disconnected
-white island-interior region — both flat white, indistinguishable at a glance. Filled the void
-with the sea's own fill colour via a **flood-fill from all four image corners** (`PIL.ImageDraw.
-floodfill`, same idea as an old bucket-fill tool) — works because the true void is one region
-contiguous with the image edges, while land is always a separate, disconnected white region
-enclosed by the coastline outline, so the flood never crosses into it. Leftover thin diagonal
-lines where the bbox clip cuts across open sea (visible on both, more so IOM) were deliberately
-left alone — confirmed with the user these read fine as "projection lines", not worth chasing
-further.
+**Reference thumbnails, both mapsets**: rendered via classic CGI `mode=map` (not WMS — neither
+mapfile has `wms_enable_request` metadata) with only `Coastline` active. Filled the true void
+(outside the clipped data extent) with the sea's own fill colour via a flood-fill from all four
+image corners (`PIL.ImageDraw.floodfill`) — works because the true void is contiguous with the
+image edges, while land is always a separate, disconnected region enclosed by the coastline
+outline, so the flood never crosses into it.
 
 **GROUP/NAME collision, found + fixed**: `Coastline` and `Water` both started out in `GROUP
-"Water"` — the same string as the `Water` layer's own `NAME`. MapServer's CGI `layers=` parameter
-matches against both layer names *and* group names, so any request that included `Water` (to keep
-the Water layer on) silently reactivated the whole group, `Coastline` included, regardless of
-Coastline's own toggle state — switching "Sea" off only ever worked if "Lakes / water bodies" was
-switched off too. Confirmed by direct `mode=map` testing (`layers=Water` alone still rendered the
-full sea fill). Fixed by renaming the group to `GROUP "WaterFeatures"` in both mapfiles (also
-covers `Waterway`, third member of the same group) — re-verified `layers=Water` alone now renders
-blank and `layers=Coastline` alone still renders the sea correctly. Audited every other mapfile in
-`/etc/webstack/mapserver/` for the same layer-name/group-name collision pattern — none found
-elsewhere, isolated to these two new mapfiles. **Worth checking for on any future mapfile that
-gives a layer the same name as its own group.**
+"Water"` — the same string as the `Water` layer's own `NAME` (see `MANUAL.md`'s CGI-semantics
+note on this class of bug). Fixed by renaming the group to `GROUP "WaterFeatures"` in both
+mapfiles. Audited every other mapfile for the same pattern — none found elsewhere.
 
-**Registry gotcha, hit for `osm_iom`**: adding the `Coastline` layer to the mapfile alone wasn't
-enough to make it appear in the live interactive viewer — `mapper_mapsets.php`'s per-mapset
-`layerList`/`layerAlias`/`layerVisible` arrays are what `map_init.html` actually submits on
-initial load, so a layer missing from the registry never gets requested even though direct
-`mode=map` testing (which takes an explicit `layers=` param) renders it fine. Caught before it
-shipped only because `osm_gb`'s registry entry was written from scratch and prompted a check of
-`osm_iom`'s existing one. **Always update the registry in the same pass as any mapfile layer
-change** — `mode=map` testing alone can't catch this, same class of gotcha as the existing
-`mode=map` vs `mode=browse` note above.
+**Registry gotcha, hit for `osm_iom`**: adding a layer to the mapfile alone wasn't enough to make
+it appear in the live interactive viewer — `mapper_mapsets.php`'s per-mapset `layerList` arrays
+are what actually get requested on initial load, so a layer missing from the registry never
+appears even though direct `mode=map` testing (which takes an explicit `layers=` param) renders
+it fine. **Always update the registry in the same pass as any mapfile layer change.**
 
-Data layout: `storage/mapper/osm_iom` and `storage/mapper/osm_gb` both symlink straight to
-`/srv/osm` (not per-dataset subfolders like the OS Data library) since both mapsets' `gpkg`s
-already live there together with the shared PBF source. `gb_osm.gpkg` is ~18.6GB (points/lines/
-multilinestrings/multipolygons/other_relations, unfiltered — filtering happens at render time via
-`FILTER`, not at build time) — took ~50 min end-to-end on srv9 (6 cores), most of it in the
-`multipolygons` layer (relation assembly for buildings/woodland/water areas). Deployed to
-**srv9 only** — matches the "srv10 only gets kept/cherry-picked data" policy, and this hasn't
-been proven yet.
+Data layout: both mapsets symlink straight to `/srv/osm` (not per-dataset subfolders). `gb_osm.gpkg`
+is ~18.6GB, took ~50 min end-to-end on srv9. Deployed to **srv9 only**.
 
-## OSM historic planet dumps — found + first one acquired, 2026-08-03/04
-The "not readily available" lament below (now out of date, kept struck-through context in the
-follow-up entry) turned out to be wrong — the Internet Archive hosts historic whole-world OSM
-planet dumps via torrent back to 2012, not just OSM's own current-data infrastructure. Full
-source detail in `[[reference_osm_historic_dumps]]` memory.
+## OSM historic planet dumps — found + first ones built, 2026-08-03/04
+The Internet Archive hosts historic whole-world OSM planet dumps via torrent back to 2012 — full
+source detail in `[[reference_osm_historic_dumps]]` memory. `osm-planet-20120912` (24GB)
+downloaded, MD5-verified, archived on both `/media3/` and `/media4/` on srv9. A GB-sized clip
+pulled via `osmium extract` (bzip2 XML read natively, ~2h20m). A larger `osm-planet-20200914`
+(101GB) found on the same source, downloading — never landed as of writing.
 
-`osm-planet-20120912` (24GB, whole-world, bzip2 OSM XML — not PBF) downloaded, MD5-verified
-against its own checksum file, and pushed to **both** `/media3/OSM-Historic/` and
-`/media4/OSM-Historic/` on srv9 (matching the OS-Data archive's dual-disk redundancy pattern) —
-each copy independently MD5-verified after transfer. A GB-sized clip was pulled out on desktop
-via `osmium extract -b -8.7,49.8,2.0,61.0` straight from the `.bz2` (osmium reads bzip2 XML
-natively, no separate decompress step) — took ~2h20m end-to-end (bz2 XML decompression is far
-slower than the PBF extracts used for `osm_iom`/`osm_gb`'s current-day source), landed at
-`/home/media1/OSM-Historic/gb-120912.osm.pbf` (516MB, verified via `osmium fileinfo`). Nothing
-built from it yet — next step would be the same `ogr2ogr`-into-`gpkg` treatment `osm_gb.map` got,
-producing a genuine 2012-vintage historic mapset once there's a reason to prioritise it.
+**`osm_gb_2012`/`osm_iom_2012` built + deployed to srv9, 2026-08-04.** Same recipe as
+`osm_gb`/`osm_iom`, Coastline layer pointed at the *existing* current-day water-polygons data via
+an absolute `CONNECTION` path rather than rebuilt (real coastlines don't move meaningfully in 12
+years) — same reasoning applied to the reference thumbnails (pointed at the existing current-day
+ones directly, since a coastline-only 2012 render would be pixel-identical). Build ran on
+**desktop, not srv9** — meaningfully faster hardware, full GB gpkg took 2m22s vs. ~50min for the
+current-day build on srv9. Verified via an authenticated `users_cnxn` cookie-insert session (see
+`MANUAL.md`... actually see the top-level CLAUDE.md's testing-without-a-password recipe;
+`user_id = 3`, not `1`). First verification attempt falsely looked broken until `curl --resolve`
+was used — `lsces.uk` resolves to production (srv10) even from srv9 itself, see
+`[[reference_srv9_web_testing]]`.
 
-A second, much larger dump (`osm-planet-20200914`, 101GB) was found on the same source and
-started downloading via torrent 2026-08-03 (multi-day ETA) — would bridge the gap between the
-2012 snapshot and current data. Not yet landed.
-
-**`osm_gb_2012`/`osm_iom_2012` mapsets built + deployed to srv9, 2026-08-04.** Same recipe as
-`osm_gb`/`osm_iom`: `ogr2ogr -t_srs EPSG:27700` straight into a gpkg (5 generic OSM layers,
-themed via `FILTER`), Coastline layer pointed at the *existing* `gb_water_polygons.gpkg`/
-`iom_osm.gpkg` water_polygons data via an absolute `CONNECTION` path rather than rebuilt — real
-coastlines don't move meaningfully in 12 years, confirmed as the right call before building
-anything. Same reasoning applied to the reference thumbnails: `REFERENCE IMAGE` in both new
-mapfiles points directly at the existing `refmap_gb_osm.png`/`refmap_iom_osm.png` rather than
-generating duplicates, since a coastline-only 2012 render would be pixel-identical.
-
-Build ran on **desktop, not srv9** — deliberately, since desktop (Ryzen 5600G, 12 threads,
-62GB RAM) is meaningfully faster than srv9 (FX-6300, 6 threads, 31GB, older Piledriver-era
-core): the IOM extract was near-instant and the full GB gpkg (2.4GB, 1.3M points/3.16M
-lines/2.38M multipolygons) took 2m22s, vs. ~50min for the much bigger current-day `osm_gb` build
-on srv9. IOM clip pulled straight from the already-downloaded `gb-120912.osm.pbf` via `osmium
-extract` with the same `IOM_BBOX` as `osm-update`'s cron script (fast — PBF is a far cheaper
-source than re-extracting from the original 24GB bz2 XML dump). Both finished gpkgs rsynced to
-srv9's `/srv/osm` (same shared dir `osm_gb`/`osm_iom` already symlink to) and checksum-verified.
-New `storage/mapper/osm_gb_2012`/`osm_iom_2012` symlinks added on srv9 alongside the existing
-ones; `mapper_mapsets.php` (webstack repo) got two new registry entries, `dataDir`-gated the same
-way. Mapfiles committed to the **private `/etc/webstack` repo** (not the public mapper package
-repo) like every other private mapfile, pushed to the bare repo and pulled on srv9.
-
-Verified live end-to-end, not just via direct `mode=map` CGI: `mode=browse` (the real deploy
-path) rendered correctly for both, and — catching the exact "registry gotcha" flagged above for
-`osm_iom` — confirmed the merged `mapper_mapsets.php` registry actually reaches `script.php`'s
-resolved output (`layerList`/`layerAlias`) for both new mapset keys, using an authenticated
-`users_cnxn` cookie-insert session (see the top-level CLAUDE.md's testing-without-a-password
-recipe; use `user_id = 3`, not `1` — see `[[reference_firebird_isql]]`). First attempt at this
-falsely looked broken — both new mapsets fell back to the default registry entry — until DNS was
-checked: `lsces.uk` resolves to production (srv10), so a plain `curl https://lsces.uk/...` run
-from srv9 itself silently tests the wrong box. Fixed with `curl --resolve
-lsces.uk:443:127.0.0.1`; see `[[reference_srv9_web_testing]]`.
-
-Deployed to **srv9 only** — matches the existing cherry-pick policy, not promoted to srv10 yet.
-`osm_iom_2012` was requested explicitly alongside `osm_gb_2012` (both built in the same pass, not
-sequenced). Follow-up, not yet actioned: user flagged the reference thumbnails as needing "more
-detail at some point" — current ones are coastline-only silhouettes with no place/road context,
-adequate for now but a real limitation once more mapsets accumulate.
-
-**Found + fixed in passing**: auditing srv9's `/media3` vs `/media4` for drift (prompted by the
-Films directory needing a manual re-sync) turned up two mapper-relevant gaps — `OS-Data
-opmplc_gpkg_gb_2026` (7.4GB) had never been copied to media4 at all, and
-`/etc/webstack/cron.daily/osm-update`'s own nightly bulk-archive mirror step
-(`rsync ... /media3/osm/`) only ever targeted media3, so it would have kept drifting every night
-indefinitely. Both fixed: the dataset copied across (verified identical), and the cron script
-itself changed to loop over both `/media3/osm` and `/media4/osm`.
+**Found + fixed in passing**: srv9's `/media3` vs `/media4` had drifted — `opmplc_gpkg_gb_2026`
+(7.4GB) had never been copied to media4, and `osm-update`'s own nightly archive mirror only ever
+targeted media3. Both fixed.
 
 ## Known follow-ups (not actioned)
-- OSM road-class colour styling (blue motorways / green primary / red A roads, etc, matching a
-  classic OS/road-atlas look) — flagged by the user as "the next logical step" while reviewing
-  `osm_gb`, explicitly *not* wanted immediately. Current `Road` layer is one FILTER/one colour,
-  same as `osm_iom`. Needs OSM `highway` tag value mapped to a colour/width table, ideally with
-  its own MAXSCALEDENOM tiers per class (motorway visible further out than residential) — same
-  pattern as `opmplc`/`vmdvec`'s road-class layers. Do not action until asked.
-- `osm_gb`/`osm_iom` and the new `osm_gb_2012`/`osm_iom_2012` not yet promoted to srv10 —
-  one-off/unproven builds, srv9-only per the existing cherry-pick policy (see the srv10 list
-  below).
-- 2012 reference thumbnails (reusing `refmap_gb_osm.png`/`refmap_iom_osm.png`) are coastline-only
-  silhouettes with no place/road context — flagged by the user as needing "more detail at some
-  point". Fine for now, worth revisiting once more historic-edition mapsets accumulate.
-- 2020 OSM planet dump (`osm-planet-20200914`) still downloading — once landed, same GB+IOM
-  extract/build/deploy pattern as the 2012 mapsets above.
-- Neither the OS-derived vector mapsets (`meridian`, `opmplc`, `vmdvec`) nor plain OSM vectors
-  render well as-is at a glance, per direct user feedback while reviewing `osm_gb` — the user's
-  actual preference leans toward the raster OS products (`minisc`, `ras250`, `omlras_gb`) for
-  general viewing, with OSM's role being the "build my own styled map" experiment above, not a
-  replacement for the OS rasters.
-- ~~10-20-year-old OSM planet/regional history dumps aren't readily available~~ — turned out
-  wrong, see "OSM historic planet dumps" above. 2012 mapsets (`osm_gb_2012`/`osm_iom_2012`) built
-  and deployed to srv9, 2026-08-04. 2020 dump still downloading — same build pattern once it
-  lands, alongside the OS historic editions already kept per
-  `[[feedback_mapper_historic_no_replace]]`.
-- **OSM tile server, floated as the next step after the 2020 dump lands (2026-08-04), not
-  decided.** Would be a different order of workload from anything built so far — everything to
-  date (`osm_gb`/`osm_iom` included) is on-demand WMS-style rendering straight off a GeoPackage
-  via MapServer/GDAL, no persistent daemon or pre-generated cache. A real slippy-map tile server
-  (`osm2pgsql`→PostGIS import, `renderd`/`mod_tile`, on-disk tile cache across zoom levels) is
-  much heavier on RAM (import) and disk (cache), and srv9 is the weaker, older box (see
-  `[[project_srv9_hardware]]` — 6-thread FX-6300, 31GB RAM, already flagged as thermally
-  marginal). Worth prototyping GB/IOM-scoped (not planet-wide) on desktop first, given desktop's
-  already-proven speed advantage for the 2012 gpkg builds, before committing srv9 hardware to a
-  persistent service. Do not action until asked.
+- OSM road-class colour styling (blue motorways / green primary / red A roads) — flagged by the
+  user as "the next logical step", explicitly *not* wanted immediately. Needs OSM `highway` tag
+  mapped to a colour/width table with its own `MAXSCALEDENOM` tiers per class. Do not action
+  until asked.
+- `osm_gb`/`osm_iom` and `osm_gb_2012`/`osm_iom_2012` not promoted to srv10 — srv9-only per the
+  cherry-pick policy.
+- 2012 reference thumbnails are coastline-only silhouettes with no place/road context — flagged
+  as needing "more detail at some point", fine for now.
+- 2020 OSM planet dump still downloading as of last check — once landed, same GB+IOM
+  extract/build/deploy pattern as the 2012 mapsets.
+- Neither the OS-derived vector mapsets nor plain OSM vectors render well as-is at a glance, per
+  direct user feedback — actual preference leans toward the raster OS products (`minisc`,
+  `ras250`, `omlras_gb`) for general viewing, OSM's role being the "build my own styled map"
+  experiment, not a replacement for the OS rasters.
+- **OSM tile server, floated 2026-08-04, built the same day** — see below, not still open.
 
 ## OSM tile server prototype — built + wired into the viewer, 2026-08-04
 Full slippy-map tile server built on desktop (PostGIS/osm2pgsql/Mapnik/renderd, OS-atlas road
 colours, custom PHP metatile reader since this stack is nginx-only with no Apache/mod_tile) and
 wired into the existing viewer as a new standalone mapset, `osm_tiles_iom` — confirmed working
-live by the user, not just via CGI tests. Full build detail, real measured tile-cache sizes,
-several real bugs found+fixed along the way (a `render_list --all` bbox coverage gap, a desktop
-vhost-root symlink gotcha), and the road-line-width-at-thumbnail-scale issue (accepted as-is, not
-reused for other IOM mapsets) — all in `[[project_osm_tile_server]]` memory, not duplicated here
-since this is infrastructure-adjacent rather than package code per se.
+live. Full build detail, real measured tile-cache sizes, and several real bugs found along the
+way (a `render_list --all` bbox coverage gap, a desktop vhost-root symlink gotcha) — all in
+`[[project_osm_tile_server]]` memory, not duplicated here since this is infrastructure-adjacent
+rather than package code per se.
 
-**Session end 2026-08-04**: everything committed (webstack + mapper package repos), desktop-only
-so far — deliberately not pushed to srv9/srv10 yet, picking back up next session.
-- Maughold Head's promontory tip is clipped by the historic IOM raster source data itself
-  (found while building the new IOM reference thumbnail) — same class of issue as
-  `[[project_iom_raster_whitespace]]`, the original scans were cropped slightly too tight on the
-  east side. No `EXTENT` fix is possible; would need re-sourcing wider originals.
-- Overview box unused horizontal space on wide layouts — see "Bitweaver-module vs. raw-frameset
-  dimension mismatch" above. Needs real column width measured first.
+Other loose ends, still open:
+- Maughold Head's promontory tip is clipped by the historic IOM raster source data itself — same
+  class of issue as `[[project_iom_raster_whitespace]]`, original scans cropped too tight. No
+  `EXTENT` fix possible; would need re-sourcing wider originals.
 - Status icon (`turnLayerVisible("Status")` target in `map.html`) restored zero-sized rather
   than fully removed — some interaction handlers call it unconditionally.
 - `theme/land_header.html` still has original leftover German "Rheinland-Pfalz" demo content.
 - OSRM routing link (referenced from the wiki Mapping Index page) has no running instance
   anywhere — not part of this revival.
-- Whether `storage/mapper` source rasters should eventually become real `LibertyMime`
-  attachments (once the DB-backed map catalog exists) — raised, not decided.
 - `pancon_gb_2016` (Land-Form PANORAMA Contours, DXF, 812 tiles) — investigated, held for later.
   No embedded CRS, needs a `gdaltindex`-built TILEINDEX across all 812 files.
-- srv10 cherry-pick list (old registry, `mapper_mapsets.php`) — `meridian_2014`, `minisc_2026`,
-  `over_gb`, `ras250_2026`, `iom_years` are there (`IOM250k2026` isn't a mapset of its own — it's
-  one layer inside `iom_years`, mislabeled here previously); `meridian_2016`, `minisc_2019`,
-  `opmplc_*`, `vmdvec_*`, `zoomstack_2026`, `omlras_gb` are srv9-only. Decision on which (if any)
-  more to promote not made — `dataDir` gate means nothing breaks either way. Increasingly
-  superseded by real `Map` content objects (see below) — srv10 uploads started 2026-08-07.
+- srv10 cherry-pick list (old registry) — `meridian_2014`, `minisc_2026`, `over_gb`, `iom_years`
+  are there (`ras250_2026` was, deleted 2026-08-08 — see below); `meridian_2016`, `minisc_2019`,
+  `opmplc_*`, `vmdvec_*`, `zoomstack_2026`, `omlras_gb` are srv9-only. Increasingly superseded by
+  real `Map` content objects.
 
 See `[[project_mapper_osrm_revival]]` memory for the full session-by-session history (wrong
 turns included) behind the choices above.
 
 ## display_map2 XYZ tile URLs made host-relative — 2026-08-07
 `display_map2.php` originally passed a renderd-backed mapset's `*_gdalwms.xml` `<ServerUrl>`
-straight through to Leaflet — absolute (`https://tiles.rdm1.uk/...`), which always public-DNS-
-resolves to srv10 regardless of which server actually served the page. srv9 had a fuller local
-tile archive (`osm_carto_gb`'s full z6-18 vs srv10's deliberate z6-17-only subset, see
-`[[project_osm_tile_server]]`) that was completely unreachable through any browser path as a
-result — not gated by srv9's new access lockdown (`[[project_srv9_lockdown]]`), just invisible by
-accident. Fixed by stripping the sidecar URL down to its path (`parse_url(..., PHP_URL_PATH)`) so
-the browser fetches same-origin, matching `/cgi-bin/mapserv`'s existing relative behaviour — the
-XML's own `<ServerUrl>` stays absolute (GDAL's server-side WMS fetch, `display_map.php`'s old
-path, genuinely needs a real curl-able URL).
+straight through to Leaflet — absolute, always public-DNS-resolving to srv10 regardless of which
+server actually served the page. srv9 had a fuller local tile archive that was completely
+unreachable through any browser path as a result, invisible by accident (not a deliberate gate).
+Fixed by stripping the sidecar URL down to its path — see `MANUAL.md`'s tile-serving section for
+the current mechanism.
 
-Needed a matching `/tiles/` location added to the real site vhost, not just the pre-existing
-standalone `tiles.rdm1.uk` vhost — new shared `webstack/nginx/snippets/tiles.conf`, included from
-`10-lsces.uk.vhost.conf`. Hit a real nginx location-precedence bug doing this: `html_common.conf`'s
-generic `\.(js|css|png|...)$` static-asset catch-all was included earlier in the vhost and won
+Hit a real nginx location-precedence bug wiring up the matching `/tiles/` location on the real
+site vhost: `html_common.conf`'s generic static-asset catch-all was included earlier and won
 nginx's first-matching-regex race, 404ing every `/tiles/*.png` request before `tile.php` ever ran
-— looked exactly like missing data until traced. Fixed by including `tiles.conf` before
-`html_common.conf`. Verified end-to-end post-fix: a z18 Trafalgar Square tile returns 200 from
-srv9, clean 404 from srv10 — the per-server data difference is now genuinely reachable/gated,
-not masked.
-
-**Any future renderd-backed mapset needs this same relative-URL treatment automatically** (it's
-generic in `display_map2.php`, not per-mapset) — but a *new* site vhost wiring up `/tiles/` for the
-first time will need the same include-order awareness (`tiles.conf` before `html_common.conf`).
+— looked exactly like missing data until traced. Fixed by include-ordering `tiles.conf` first.
 
 ## display_map.php slug-permission bypass, EXCL default, /mapper/view/ pretty URL — 2026-08-07
 `display_map.php` only extracted the resolver's `map` result inside its `content_id`-given
 branch, so a real `Map` reached via a slug match on `?mapset=` (the `/mapper/map/<name>` pretty
-URL) silently skipped `verifyViewPermission()` (the protector-aware check) and fell through to
-the registry's blanket permission check instead — a genuine per-item permission bypass, found
-live testing `/mapper/map/over_gb`. `display_map2.php` never had this (always used a single
-resolver-call/unconditional-extract pattern). Fixed by restructuring `display_map.php` to match:
-one `mapper_resolve_mapset()` call, then branch purely on whether `$map` came back truthy.
+URL) silently skipped `verifyViewPermission()` and fell through to the registry's blanket
+permission check instead — a genuine per-item permission bypass, found live testing
+`/mapper/map/over_gb`. `display_map2.php` never had this. Fixed by restructuring
+`display_map.php` to match: one resolver call, branch purely on whether `$map` came back truthy
+(this is the resolver shape `MANUAL.md` now documents as current).
 
-Separately found `Map::storeParsedMapFileDetails()` defaulted `EXCL` to exclusive (radio-button,
-pick-one-of-several-layers) whenever a mapfile had no `# MAPPER: EXCL=` comment — wrong for
-ordinary multi-layer thematic datasets, caught live when batch-imported `meridian_2014`
-collapsed its 12 independent overlay layers into a single-choice group (only one layer, close to
-"settlements", stayed visible). Default flipped to non-exclusive; exclusive is now opt-in via the
-comment, added to the 5 mapsets that are genuinely edition-picker style (`iom_years`,
-`minisc_2019`/`_2026`, `omlras_gb`, `over_gb`). Existing wrongly-defaulted xref rows for the other
-10 already-imported multi-layer content objects corrected directly in the DB.
+Separately found `Map::storeParsedMapFileDetails()` defaulted `EXCL` to exclusive whenever a
+mapfile had no `# MAPPER: EXCL=` comment — wrong for ordinary multi-layer thematic datasets,
+caught live when batch-imported `meridian_2014` collapsed its 12 independent overlay layers into
+a single-choice group. Default flipped to non-exclusive (now documented as current behaviour in
+`MANUAL.md`).
 
-Added a pretty `/mapper/view/<name>` URL for `view.php` (slug lookup, same pattern as
-`/mapper/map/` and `/mapper/map2/`), and pointed `Map::getDisplayUrlFromHash()` at it so
-`list_maps.php`'s links use it directly instead of a plain `?content_id=` dispatch.
-
-Deployed to **both srv9 and srv10** same session (mapper + kernel package pulls, webstack pull,
-nginx tested+reloaded on both, php-fpm auto-reloaded by `server-pull-all.sh`) — srv9 and srv10
-were both still on the pre-Map-class commit, so this was the first real deploy of the whole
-Map-object feature, not just today's fixes. No DB schema step needed — xref group/item
-registration already present on both servers from earlier. Smoke-tested clean on both (bare
-demo, `list_maps.php`, a bogus slug 404ing correctly). User then uploaded the first 4 real `Map`
-objects to srv10 directly and confirmed them working.
-
-**Known follow-ups for next session:**
-- Add small view/map/map2 launch icons in front of the title link on `list_maps.php` — one icon
-  routes to the classic frameset viewer (`display_map.php`), one to the Leaflet viewer
-  (`display_map2.php`), alongside the existing metadata `view.php` link.
-- `overviewHeight` (the per-mapset overview-box height override, see the "Bitweaver-module vs.
-  raw-frameset dimension mismatch" section above) only exists in the old registry array
-  (`mapper_mapsets.php`) — `resolve_mapset_inc.php`'s content_id branch never populates it, so
-  every real `Map` object silently falls back to the fixed 150px default in `display_map2.php`,
-  losing the taller-box override GB-scale/portrait mapsets need. Needs a new xref item
-  (`general`/`OVERVIEWHEIGHT` or similar) alongside `EXTENT`/`SHPPATH`/`EXCL`, settable from
-  `edit.php`, read back in `resolve_mapset_inc.php`'s content_id branch. **Done, 2026-08-08 —
-  see below.**
+Deployed to both srv9 and srv10 same session — first real deploy of the whole Map-object feature,
+not just that day's fixes. User then uploaded the first 4 real `Map` objects to srv10 directly.
 
 ## On-demand tile cache for classic mapsets, xref XKEY tidy, delete button — 2026-08-08
-Picked up the two follow-ups tagged the night before (list_maps.php launch icons, `overviewHeight`
-xref) - both straightforward, done first. The bigger piece: `display_map2.php`'s Leaflet layer hit
-`/cgi-bin/mapserv` live via a WMS GetMap request on every single pan/zoom for every classic
-mapset (meridian, opmplc, vmdvec, zoomstack, over_gb, etc), zero caching - MapServer re-renders
-the vector data from scratch each time. Since Leaflet's WMS requests are always tile-grid-aligned
-(256x256, EPSG:3857), the response for a given z/x/y is pixel-identical to a real pre-rendered
-XYZ tile at that coordinate - built `render_tile.php` to reshape this into genuine z/x/y.png
-files on disk, written once per tile on first request and served directly by nginx thereafter
-(new `/tiles/mapsrv/<mapset>/<layer>/{z}/{x}/{y}.png` location in webstack's
-`nginx/snippets/tiles.conf`, `try_files` a real cached file first - a HIT never touches PHP at
-all). `display_map2.php` now points classic mapsets at real tile URLs instead of raw WMS params,
-reusing the same client-side `xyz` tile-layer code already used for renderd-backed mapsets.
+The bigger piece this session: `display_map2.php`'s Leaflet layer hit `/cgi-bin/mapserv` live on
+every single pan/zoom for every classic mapset, zero caching. Built `render_tile.php` +
+`/tiles/mapsrv/...` to fix this — see `MANUAL.md`'s tile-serving section for how it actually
+works now. Two real bugs found building it, both now documented as gotchas in `MANUAL.md`:
+`http_build_query()`'s default arg separator silently truncating WMS params, and
+`resolve_mapset_inc.php` reading a `'source_file'` key that never existed (fixed via
+`LibertyMime::getSourceFile()`).
 
-Two real bugs found building this: `http_build_query()`'s default arg separator came out as
-`&amp;` (this php.ini's `arg_separator.output`), silently truncating every WMS param after the
-first for a direct `proc_open()` call to `mapserv` - fixed with an explicit `'&'` separator.
-And `resolve_mapset_inc.php` was reading a `'source_file'` key that never existed on a real
-Map's `mInfo['map_file']` array - masked until now because nothing had actually needed the
-resolved filesystem path to succeed before (`display_map.php`/`display_map2.php`'s old WMS path
-only ever needed `'map'` as a query-string value, resolved correctly elsewhere) - fixed via
-`LibertyMime::getSourceFile( $map->mInfo['map_file'] )`, the real accessor.
+**Cross-server path self-heal**: found live via a `firebird-restore` pulling srv10-baked absolute
+paths onto desktop, breaking `content_id=7390`'s TEMPLATE resolution — a real Map's stored
+mapfile bakes `SYMBOLSET`/`TEMPLATE`/etc paths absolute to whichever server did the uploading.
+Generalized `Map::fixRelativePaths()` to self-heal on every resolve instead of only once at
+upload — see `MANUAL.md` for the current mechanism.
 
-**Cross-server path self-heal**: a real Map's stored mapfile bakes its `SYMBOLSET`/`TEMPLATE`/etc
-paths absolute at upload time, anchored to whichever server did the uploading
-(`Map::fixRelativePaths()`). Fine until that DB+storage state gets mirrored to a different
-server (desktop's `bitweaver5` split vs a real server's own `lsces` docroot) - found live via a
-`firebird-restore` pulling srv10-baked paths onto desktop, breaking `content_id=7390`'s TEMPLATE
-resolution. Generalized `fixRelativePaths()` to also match an already-absolute
-`/srv/website/<any-domain>/mapper/...` prefix (not just relative `../`), made it public, and
-call it on every resolve (idempotent, cheap no-op once already correct) instead of only once at
-upload - self-heals across environment syncs automatically now.
+**Xref schema tidy**: `EXCL`/`OVERVIEWHEIGHT` moved to the generic `value` xref template (`XKEY`
+directly, no blob), new `PROJECTION` item added the same way — full field reference now in
+`MANUAL.md`. Found and fixed a real regression migrating existing data: the 5 real Map objects'
+`EXCL` rows still had the *old* xkey-holds-item-name pattern, briefly making every mapset resolve
+as non-exclusive — migrated via `UPDATE ... SET xkey = CAST(data AS VARCHAR(32))` (reads the real
+value out of the old blob rather than manual transcription). Same bug hit srv9 (22 test mapsets)
+and srv10 (4) once deployed there, fixed the same way on both.
 
-**Xref schema tidy**: `EXCL`/`OVERVIEWHEIGHT` moved from the `text` template (value redundantly
-duplicated into `XKEY`, real value in the `DATA` blob) to the existing generic `value` template
-(`view_xref_value_item.tpl`/`edit_xref_value_item.tpl` - value straight in `XKEY(32)`, `XKEY_EXT`
-as a free-text "Notes" field, no blob at all). New `PROJECTION` xref item added the same way -
-`Map::parseMapFile()` now extracts the mapfile's own `PROJECTION` block, strips PROJ.4's `init=`
-prefix for a clean short value in `XKEY` (e.g. `epsg:27700`), keeps the full original string in
-`XKEY_EXT(250)` as a safety margin (a raw, fully-spelled-out PROJ.4 string with no `init=`
-shorthand can run 100+ chars - every real mapfile in this project currently uses the simple form,
-confirmed by grepping all of them, but the fallback exists for when that changes). Shown per-row
-on `list_maps.php` - turned out that page doesn't call `Map::getList()` at all, it goes through
-`LibertyContent::getContentList()` (a fully independent generic query-builder), so the column
-needed a small batched follow-up query in `get_map_list_inc.php` instead of a JOIN in a method
-that was never actually running.
+Removed the redundant `EXCL` checkbox from `edit.php` and `upload_map.php` — editable through the
+generic xref group tabs now, and the upload form's version never applied correctly to a
+batch-archive import anyway.
 
-Found and fixed a real regression while migrating existing data: the 5 real Map objects'
-existing `EXCL` rows still had the *old* xkey-holds-item-name pattern from before the schema
-change, which briefly made every mapset resolve as non-exclusive - migrated via
-`UPDATE ... SET xkey = CAST(data AS VARCHAR(32))` (reads the real value straight out of the old
-blob rather than manual transcription) - same bug hit srv9 (all 22 test mapsets) and srv10 (its
-4) once deployed there too, fixed the same way on both.
+**Delete button**: `view.php` had Edit but no Delete — added, standard `confirmDialog()`-then-
+`expunge()` flow. Found a real bug doing this: `LibertyMime::expunge()` only cleans up
+attachments, never calls `parent::expunge()`, so the actual content-deletion logic never ran —
+the delete flow reported success but the object was still there. `Map::expunge()` now overrides
+to call both halves (documented in `MANUAL.md`). Stock's own components never hit this since
+`StockComponent` extends `LibertyContent` directly, no attachment involved.
 
-Also removed the `EXCL` checkbox from both `edit.php` and `upload_map.php` - it's fully
-redundant now (the mapfile's own `# MAPPER: EXCL=...` comment still wins at upload time, and
-it's editable afterwards through the standard generic xref group tabs regardless), and the
-upload form's version never applied correctly to a batch-archive import's many files anyway.
+More floaticon options (Print, matching stock's BOM print) flagged for later — wants the xref
+`data`-blob JSON display tidied up first (a generic `json` xref template — see `MANUAL.md`'s
+known-limitations list).
 
-**Delete button**: `view.php` had Edit but no Delete at all - added alongside it (same
-`hasUpdatePermission()` gate, matching `stock/view_component.tpl`'s convention), with `edit.php`
-handling `delete=1` via the standard `confirmDialog()`-then-`expunge()` two-step flow. Found a
-real bug doing this: `LibertyMime::expunge()` only cleans up attachments - it deliberately never
-calls `parent::expunge()`, so the actual content-deletion logic
-(`LibertyContent::expunge()` - history, xrefs, permissions, favorites, the `liberty_content` row
-itself) never ran. The delete flow reported success (clean redirect) but the object was still
-there afterwards. Stock's own components get this for free since `StockComponent` extends
-`LibertyContent` directly (no attachment involved); `Map` extends `LibertyMime`, so it needed
-both halves explicitly - added a `Map::expunge()` override calling both, verified end-to-end
-(DB row, history, xrefs, and the physical attachment file all confirmed gone after a real delete).
-
-More floaticon options (Print, matching stock's BOM print) flagged for later - wants the xref
-`data`-blob JSON display tidied up first (a generic `json` xref template, discussed but not
-built - `EXTENT`'s JSON and `LAYER`'s per-layer metadata are the two xref items that would
-benefit).
-
-**Deployed to both srv9 and srv10** same session - both were still on last night's pre-tile-cache
-commit, so this was effectively one combined deploy covering last night's fixes too. Also ran the
-same `liberty_xref_item` schema tidy and `EXCL` data migration on both servers by hand (installer
-not yet exercised for this - see `[[feedback_installer_permission_cleanup]]`, this was a
-deliberate manual step, not a substitute for eventually testing that path). Found a real data gap
-while verifying: `ras250_2026` 404s on srv10 - its `Map` object exists but the actual raster tile
-data (`storage/mapper/ras250_gb_2026/`) was never copied there, confirmed via the "does the
-source exist" gate correctly rejecting it rather than a code bug. Not fixed (disk space is tight
-on srv10, not copying data across without a deliberate decision) - the user deleted the `Map`
-object on both srv10 and desktop instead, matching the plan below.
+**Deployed to both srv9 and srv10** — both were still on the pre-tile-cache commit, so this
+covered the previous day's fixes too. Ran the same `liberty_xref_item` schema tidy and `EXCL`
+data migration on both servers by hand (installer not yet exercised for this — see
+`[[feedback_installer_permission_cleanup]]`). Found a real data gap while verifying: `ras250_2026`
+404s on srv10 — `Map` object existed but the actual raster tile data was never copied there
+(confirmed via the "does the source exist" gate correctly rejecting it, not a code bug). Not
+worth copying more data to srv10 given its tight disk space — user deleted the `Map` object on
+both srv10 and desktop instead, resolving the gap by removing the mapset rather than adding data.
 
 ## rdmcloud.uk — new private cloud service on srv9, 2026-08-08
 Real architectural fix for a recurring friction point this whole session: `lsces` was being
-asked to serve two incompatible roles at once - the production domain that must mirror
-srv10 cleanly (subject to the nightly `firebird-backup` srv10→desktop chain and manual
-`firebird-restore` to srv9), *and* the active mapper development/test bed. Every bit of friction
-hit this session (desktop's stale test data, needing the same `EXCL` migration on three separate
-machines, "will tonight's backup mess things up again") traced back to that same conflict.
-`rdmcloud.uk` is the fix - a genuinely separate site, srv9-only, deliberately kept **out** of the
-srv10-authoritative backup/restore chain (its own DR coverage, srv9-side, still to be built -
-explicitly not folded into the existing `firebird-backup`/`firebird-restore` scripts, which
-assume srv10 is always the source).
+asked to serve two incompatible roles at once — the production domain that must mirror srv10
+cleanly, *and* the active mapper development/test bed. Every bit of friction hit this session
+(desktop's stale test data, needing the same `EXCL` migration on three separate machines, "will
+tonight's backup mess things up again") traced back to that same conflict. `rdmcloud.uk` is the
+fix — a genuinely separate site, srv9-only, deliberately kept **out** of the srv10-authoritative
+backup/restore chain (its own DR coverage, srv9-side, still to be built — explicitly not folded
+into the existing scripts, which assume srv10 is always the source). Current structure documented
+in `MANUAL.md`'s Deployment section.
 
-Built as a full clone of `lsces` (DB via `gbak` backup/restore, `config/`+`storage/` via `cp -a`),
-then given its own identity:
-- New Firebird DB `rdmcloud` (alias registered in the shared `databases.conf` - harmless to share
-  across all three machines even though the `.fdb` only exists on srv9, same as any unused alias).
-- `config_inc.php` symlinked to a new `/etc/webstack/domains/rdmcloud/config_inc.php` (matching
-  the `lsces` pattern properly, not left as the real, Kate-breakable file the clone produced) -
-  only `$gBitDbName` needed changing, `$gBitDbHost`/`$gTempDir` both derive from it automatically.
-- Own theme (`config/themes/rdmcloud`, cloned+renamed from `lsces`'s, moved into
-  `/etc/webstack/domains/rdmcloud/themes/rdmcloud/` matching the same real-content-in-webstack
-  symlink-from-site pattern the `lsces` theme already uses).
-- Own `mapper_tiles` cache, deliberately *not* shared with `lsces`'s
-  (`/media3/rdmcloud-mapper-tile-cache`, separate from `/media3/mapper-tile-cache`) - confirmed
-  isolated and working live against `ras250_2026` (cache miss → real mapserv render → cache hit
-  on the next request, tiles landing in the right directory).
-- `site_title` updated ("RDM Cloud", not the cloned "LSCES Main Site") - session cookie
-  correctly came out as `bit-user-rdmcloud` once this and a stale `auth_config.php`/APCu cache
-  were cleared (`session_name()` is computed by stripping/lowercasing the literal `site_title`
-  text, not a fixed `<name>mainsite` template - the `mainsite` part was only ever literal text
-  that happened to be in `lsces`'s own title).
-- Found and fixed a real leftover-from-clone bug along the way: `kernel_config.site_temp_dir`
-  still said `/srv/tmp/lsces/` post-clone, which meant Smarty was compiling/caching templates
-  against the *old* site's temp path - manifested as the theme CSS still resolving to
-  `lsces.css` long after every other theme-selection setting (`style` config, the symlink itself)
-  was already correctly `rdmcloud`. Fixed by updating the DB value and creating the real
-  `/srv/tmp/rdmcloud/` directory; a fresh Smarty compile against the corrected path picked up
-  the right theme immediately.
-- nginx vhost (`98-rdmcloud.uk.vhost.conf`, based directly on `lsces`'s own real-server vhost)
-  created straight on srv9's filesystem, deliberately **not** pushed to the shared webstack
-  repo - `skip-worktree`'d, and kept staged-but-uncommitted rather than committed, so a future
-  `git push` from srv9 (for anything unrelated) can never leak it upstream. SSL cert for
-  `rdmcloud.uk` already existed (issued back in July, unclear exactly when/why, but real and
-  valid) - no cert-bootstrap dance needed this time. DNS already resolves to the same home IP as
-  every other domain here, so no DNS changes were needed either - purely an nginx-side `server_name`
-  addition.
+Built as a full clone of `lsces` (DB via `gbak`, `config/`+`storage/` via `cp -a`), then given its
+own identity — new DB alias, `config_inc.php` properly symlinked (not left as the real,
+Kate-breakable file the clone produced), own theme, own isolated `mapper_tiles` cache (confirmed
+working live against `ras250_2026` — cache miss → real render → cache hit on the next request),
+distinct `site_title`. Found a real leftover-from-clone bug along the way: `kernel_config.
+site_temp_dir` still said `/srv/tmp/lsces/` post-clone, so Smarty kept compiling/caching
+templates against the *old* site's temp path — manifested as the theme CSS still resolving to
+`lsces.css` long after every other theme-selection setting was already correctly `rdmcloud`.
+Fixed by updating the DB value and creating the real `/srv/tmp/rdmcloud/` directory.
 
-**Deliberately left for later**: `rdmcloud`'s own backup/DR coverage (srv9-side, not the existing
-scripts); stripping `lsces` back down to match `srv10`'s minimal real set now that the "stuff I'm
-hiding from the other sites" (the full 22-mapset test batch, OS-Data variety, etc) has a proper
-home in `rdmcloud` instead.
+nginx vhost created straight on srv9's filesystem, deliberately **not** pushed to the shared
+webstack repo — `skip-worktree`'d, and kept staged-but-uncommitted (not committed) so a future
+`git push` from srv9 for anything unrelated can never leak it upstream (a commit, even
+skip-worktree'd, would still get pushed — only staged-uncommitted changes are genuinely safe from
+that). SSL cert for `rdmcloud.uk` already existed (issued back in July, unclear exactly when/why,
+but real and valid) — no cert-bootstrap dance needed. DNS already resolved to the same home IP as
+every other domain here, so no DNS changes were needed either.
+
+**Deliberately left for later**: `rdmcloud`'s own backup/DR coverage; stripping `lsces` back down
+to match `srv10`'s minimal real set now that the "stuff I'm hiding from the other sites" has a
+proper home in `rdmcloud` instead.
+
+## MANUAL.md split — 2026-08-08
+This file had grown into a long chronological log with genuinely useful reference material
+(architecture, xref schema, tile caching, permissions, deployment topology) buried inside dated
+"found and fixed" entries. Pulled the stable "how it works now" material out into `MANUAL.md` —
+this file keeps the history (why decisions were made, bugs found along the way, what's still
+open), `MANUAL.md` is what to read to understand the current system. Trimmed this file's own
+duplicated reference sections accordingly (frame architecture, load choreography, `scriptURL`/
+`styleURL`, `MAPPER_PKG_PATH`, storage rules, MapServer CGI semantics, the pre-`Map`-object
+mapset-registry description — all now in `MANUAL.md` only).
