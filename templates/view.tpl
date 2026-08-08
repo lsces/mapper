@@ -4,6 +4,7 @@
 	{include file="bitpackage:liberty/services_inc.tpl" serviceLocation='icon' serviceHash=$gContent->mInfo}
 	{if $gContent->hasUpdatePermission()}
 		<a title="{tr}Edit{/tr}" href="{$smarty.const.MAPPER_PKG_URL}edit.php?content_id={$gContent->mContentId}">{biticon ipackage="icons" iname="edit" iexplain="Edit"}</a>
+		<a title="{tr}Delete{/tr}" href="{$smarty.const.MAPPER_PKG_URL}edit.php?content_id={$gContent->mContentId}&amp;delete=1">{biticon ipackage="icons" iname="user-trash" iexplain="Delete"}</a>
 	{/if}
 </div>
 

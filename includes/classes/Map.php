@@ -233,6 +233,20 @@ class Map extends LibertyMime
 	 * not guessed - mime.pdf.php's own mime_pdf_text_extract() avoids this same trap by running
 	 * before mime_default_store(), same reasoning applies here).
 	 */
+	/**
+	 * LibertyMime::expunge() only cleans up attachments - it deliberately does NOT call
+	 * parent::expunge(), so calling it alone leaves the liberty_content row (and its history,
+	 * xrefs, permissions, favorites - everything LibertyContent::expunge() actually handles)
+	 * behind. Found live: edit.php's delete=1 flow reported success (redirected cleanly) but the
+	 * content object was still there afterwards. Stock's own components get this for free since
+	 * StockComponent extends LibertyContent directly (no attachment involved) - Map needs both
+	 * halves explicitly since it extends LibertyMime.
+	 */
+	public function expunge(): bool {
+		LibertyMime::expunge();
+		return LibertyContent::expunge();
+	}
+
 	function store( array &$pParamHash ): bool {
 		$uploads = $pParamHash['_files_override'] ?? [];
 		$upload = reset( $uploads );

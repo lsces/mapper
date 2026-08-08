@@ -29,6 +29,19 @@ if( !empty( $_REQUEST['cancel'] ) ) {
 	if( $gContent->store( $pParamHash ) ) {
 		KernelTools::bit_redirect( $gContent->getDisplayUrl() );
 	}
+} elseif( !empty( $_REQUEST['delete'] ) ) {
+	// verifyUpdatePermission() above already gates this whole page - no separate permission
+	// check needed here, same as stock's edit_component.php delete=1 handling this mirrors.
+	if( empty( $_REQUEST['confirm'] ) ) {
+		$gBitSystem->confirmDialog( [ 'delete' => true, 'content_id' => $gContent->mContentId ], [
+			'confirm_item' => $gContent->getTitle(),
+			'warning'      => KernelTools::tra( 'Are you sure you want to delete this map?' ).' ('.$gContent->getTitle().')',
+			'error'        => KernelTools::tra( 'This cannot be undone!' ),
+		] );
+		// confirmDialog() renders the prompt and die()s - never reaches here.
+	} elseif( $gContent->expunge() ) {
+		KernelTools::bit_redirect( MAPPER_PKG_URL.'list_maps.php' );
+	}
 }
 
 $errors = !empty( $gContent->mErrors ) ? $gContent->mErrors : [];
