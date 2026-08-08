@@ -424,9 +424,10 @@ that). SSL cert for `rdmcloud.uk` already existed (issued back in July, unclear 
 but real and valid) — no cert-bootstrap dance needed. DNS already resolved to the same home IP as
 every other domain here, so no DNS changes were needed either.
 
-**Deliberately left for later**: `rdmcloud`'s own backup/DR coverage; stripping `lsces` back down
-to match `srv10`'s minimal real set now that the "stuff I'm hiding from the other sites" has a
-proper home in `rdmcloud` instead.
+**Deliberately left for later**: stripping `lsces` back down to match `srv10`'s minimal real set
+now that the "stuff I'm hiding from the other sites" has a proper home in `rdmcloud` instead.
+(`rdmcloud`'s own backup/DR coverage was left for later here too, originally — see the dedicated
+entry below, same day, for how that turned out.)
 
 ## MANUAL.md split — 2026-08-08
 This file had grown into a long chronological log with genuinely useful reference material
@@ -437,3 +438,8 @@ open), `MANUAL.md` is what to read to understand the current system. Trimmed thi
 duplicated reference sections accordingly (frame architecture, load choreography, `scriptURL`/
 `styleURL`, `MAPPER_PKG_PATH`, storage rules, MapServer CGI semantics, the pre-`Map`-object
 mapset-registry description — all now in `MANUAL.md` only).
+
+## rdmcloud DR/dev topology completed — 2026-08-08
+Picked up the "left for later" thread from earlier today: `rdmcloud`'s own backup/DR coverage now
+spans desktop, srv9, and srv10 properly. This was entirely backup-script/nginx/cert infra work,
+not mapper-specific — full detail in `/etc/webstack/CLAUDE.md` instead.

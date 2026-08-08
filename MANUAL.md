@@ -324,13 +324,14 @@ Liberty attachment storage, not the `mapper/` package tree) can be handed straig
   desktop and srv9 receive it via `firebird-backup`/`firebird-restore`. srv10 only carries a
   small, deliberately cherry-picked subset of real `Map` objects and legacy registry mapsets
   (disk space is tight there); srv9 and desktop have historically carried the full archive.
-- **`rdmcloud.uk`** (srv9 only) — a genuinely separate private cloud service, deliberately kept
-  *out* of the srv10-authoritative backup chain, existing specifically so `lsces` doesn't have to
-  serve two incompatible roles (clean DR mirror *and* active development/test bed) at once. Its
-  own DR coverage is a separate, not-yet-built concern — explicitly not folded into the existing
-  `firebird-backup`/`firebird-restore` scripts, which assume srv10 is always the authoritative
-  source. Has its own isolated `storage/mapper_tiles` cache, own theme, own Firebird DB
-  (`rdmcloud` alias in the shared `databases.conf`).
+- **`rdmcloud.uk`** (live on srv9 only) — a genuinely separate private cloud service, deliberately
+  kept *out* of the srv10-authoritative backup chain, existing specifically so `lsces` doesn't
+  have to serve two incompatible roles (clean DR mirror *and* active development/test bed) at
+  once. Has its own DR topology instead (srv9-only `rdmcloud-backup` cron job, reverse direction
+  from every other domain): a passive, un-enabled standby fully populated on srv10, and a real,
+  accessible dev copy on desktop — see `/etc/webstack/CLAUDE.md` for the mechanics. Has its own
+  isolated `storage/mapper_tiles` cache, own theme, own Firebird DB (`rdmcloud` alias in the
+  shared `databases.conf`).
 
 ## Known limitations (as of writing)
 
