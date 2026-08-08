@@ -74,11 +74,21 @@ function mapper_resolve_mapset( ?int $pContentId, string $pResolvedMapsetKey ): 
 		// the old registry's mapper/ tree) precisely so the real attachment path can be handed
 		// straight to MapServer here - no symlink dance needed, see mapper/CLAUDE.md.
 
-		$generalRows = $gBitDb->getAssoc( "SELECT `item`, `data` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` IN ('EXTENT','SHPPATH','EXCL','OVERVIEWHEIGHT')", [ $pContentId ] );
-		$extentData = !empty( $generalRows['EXTENT'] ) ? json_decode( $generalRows['EXTENT'], true ) : null;
-		$shapePath = $generalRows['SHPPATH'] ?? null;
-		$exclusive = !isset( $generalRows['EXCL'] ) || $generalRows['EXCL'] === '1';
-		$overviewHeight = !empty( $generalRows['OVERVIEWHEIGHT'] ) ? (int)$generalRows['OVERVIEWHEIGHT'] : null;
+		// EXCL/OVERVIEWHEIGHT are short scalars living in XKEY (template 'value', see
+		// Map::upsertSingleXref()'s own doc comment) - EXTENT/SHPPATH are still in the DATA blob
+		// (too long for XKEY's 32-char limit), so both columns are needed here.
+		$generalRows = $gBitDb->query( "SELECT `item`, `xkey`, `data` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` IN ('EXTENT','SHPPATH','EXCL','OVERVIEWHEIGHT')", [ $pContentId ] );
+		$generalData = $generalXkey = [];
+		if( $generalRows ) {
+			foreach( $generalRows as $row ) {
+				$generalData[$row['item']] = $row['data'];
+				$generalXkey[$row['item']] = $row['xkey'];
+			}
+		}
+		$extentData = !empty( $generalData['EXTENT'] ) ? json_decode( $generalData['EXTENT'], true ) : null;
+		$shapePath = $generalData['SHPPATH'] ?? null;
+		$exclusive = !isset( $generalXkey['EXCL'] ) || $generalXkey['EXCL'] === '1';
+		$overviewHeight = !empty( $generalXkey['OVERVIEWHEIGHT'] ) ? (int)$generalXkey['OVERVIEWHEIGHT'] : null;
 
 		// "does the source actually exist on this server" - equivalent to the old registry's
 		// dataDir check, but driven by the mapfile's own SHAPEPATH (extracted at upload time)

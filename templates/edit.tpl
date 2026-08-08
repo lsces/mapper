@@ -21,17 +21,10 @@
 
 			{textarea edit=$gContent->mInfo.data rows=5 label="Description"}
 
-			<div class="form-group">
-				<div class="col-sm-offset-2 col-sm-6">
-					<div class="checkbox">
-						<label>
-							<input type="checkbox" name="excl" value="1" {if $mapExcl}checked{/if}>
-							{tr}Exclusive layer selection (radio buttons, not checkboxes){/tr}
-						</label>
-						{formhelp note="Set automatically from the mapfile's own `# MAPPER: EXCL=...` comment when present - this only applies when that comment is absent."}
-					</div>
-				</div>
-			</div>
+			{* Exclusive-layer-selection (EXCL) is a registered xref item (template 'value') now
+			- editable through the generic xref group tabs below, no dedicated form field here.
+			Still settable from the mapfile's own "# MAPPER: EXCL=..." comment at upload time,
+			same as before - only the manual edit-page checkbox moved. *}
 
 			<div class="form-group">
 				{formlabel label="Overview box height (px)" for="map-overview-height"}

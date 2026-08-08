@@ -25,7 +25,6 @@ if( !empty( $_REQUEST['cancel'] ) ) {
 } elseif( !empty( $_REQUEST['save'] ) ) {
 	$pParamHash = $_REQUEST;
 	$pParamHash['content_id'] = $gContent->mContentId;
-	$pParamHash['excl'] = !empty( $_REQUEST['excl'] );
 	$pParamHash['overview_height'] = $_REQUEST['overview_height'] ?? '';
 	if( $gContent->store( $pParamHash ) ) {
 		KernelTools::bit_redirect( $gContent->getDisplayUrl() );
@@ -36,9 +35,9 @@ $errors = !empty( $gContent->mErrors ) ? $gContent->mErrors : [];
 $gBitSmarty->assign( 'errors', $errors );
 
 global $gBitDb;
-$currentExcl = $gBitDb->getOne( "SELECT `data` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = 'EXCL'", [ $gContent->mContentId ] );
-$gBitSmarty->assign( 'mapExcl', $currentExcl === null || $currentExcl === '1' );
-$currentOverviewHeight = $gBitDb->getOne( "SELECT `data` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = 'OVERVIEWHEIGHT'", [ $gContent->mContentId ] );
+// EXCL is a registered xref item (template 'value') now - editable through the generic xref UI
+// below (loadXrefInfo()/$gXrefInfo), no dedicated form field needed here any more.
+$currentOverviewHeight = $gBitDb->getOne( "SELECT `xkey` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = 'OVERVIEWHEIGHT'", [ $gContent->mContentId ] );
 $gBitSmarty->assign( 'mapOverviewHeight', $currentOverviewHeight );
 
 $gContent->loadXrefInfo();

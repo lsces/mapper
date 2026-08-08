@@ -39,7 +39,8 @@ $xrefTypes[] = "INSERT INTO `{$X}liberty_xref_group` (`x_group`,`content_type_gu
 
 $xrefItems[] = "INSERT INTO `{$X}liberty_xref_item` (`item`,`content_type_guid`,`x_group`,`cross_ref_title`,`multiple`,`role_id`,`cross_ref_href`,`template`,`data`) VALUES ('EXTENT', 'mapper','general','Extent',          0,3,'','text',NULL)";
 $xrefItems[] = "INSERT INTO `{$X}liberty_xref_item` (`item`,`content_type_guid`,`x_group`,`cross_ref_title`,`multiple`,`role_id`,`cross_ref_href`,`template`,`data`) VALUES ('SHPPATH','mapper','general','Data Directory',  0,3,'','text',NULL)";
-$xrefItems[] = "INSERT INTO `{$X}liberty_xref_item` (`item`,`content_type_guid`,`x_group`,`cross_ref_title`,`multiple`,`role_id`,`cross_ref_href`,`template`,`data`) VALUES ('EXCL',   'mapper','general','Exclusive Layers', 0,3,'','text',NULL)";
+$xrefItems[] = "INSERT INTO `{$X}liberty_xref_item` (`item`,`content_type_guid`,`x_group`,`cross_ref_title`,`multiple`,`role_id`,`cross_ref_href`,`template`,`data`) VALUES ('EXCL',   'mapper','general','Exclusive Layers', 0,3,'','value',NULL)";
+$xrefItems[] = "INSERT INTO `{$X}liberty_xref_item` (`item`,`content_type_guid`,`x_group`,`cross_ref_title`,`multiple`,`role_id`,`cross_ref_href`,`template`,`data`) VALUES ('OVERVIEWHEIGHT','mapper','general','Overview Height',0,3,'','value',NULL)";
 $xrefItems[] = "INSERT INTO `{$X}liberty_xref_item` (`item`,`content_type_guid`,`x_group`,`cross_ref_title`,`multiple`,`role_id`,`cross_ref_href`,`template`,`data`) VALUES ('LAYER',  'mapper','layers', 'Layer',            1,3,'','text',NULL)";
 
 $gBitInstaller->registerSchemaDefault( MAPPER_PKG_NAME, array_merge( $xrefTypes, $xrefItems ) );

@@ -260,10 +260,6 @@ class Map extends LibertyMime
 			$this->mInfo['content_id'] = $this->mContentId;
 			if( $parsed ) {
 				$this->storeParsedMapFileDetails( $parsed, $pParamHash );
-			} elseif( array_key_exists( 'excl', $pParamHash ) ) {
-				// Plain edit, no new file - EXCL still needs to be independently toggleable
-				// from the edit page, not just settable via upload (file comment or checkbox).
-				$this->upsertSingleXref( 'general', 'EXCL', $pParamHash['excl'] ? '1' : '0' );
 			}
 
 			// overview_height - display_map2.php's per-mapset overview-box height override (see
@@ -274,7 +270,7 @@ class Map extends LibertyMime
 			if( array_key_exists( 'overview_height', $pParamHash ) ) {
 				$height = (int)$pParamHash['overview_height'];
 				if( $height > 0 ) {
-					$this->upsertSingleXref( 'general', 'OVERVIEWHEIGHT', (string)$height );
+					$this->upsertSingleXref( 'general', 'OVERVIEWHEIGHT', (string)$height, true );
 				} else {
 					// Blank/zero means "use the default" - clear any existing override rather
 					// than storing a meaningless 0.
@@ -402,9 +398,9 @@ class Map extends LibertyMime
 		// form's checkbox - it's the only signal that works sensibly for a batch-archive
 		// import (one checkbox can't apply correctly across many unrelated mapfiles at once).
 		if( $excl !== null ) {
-			$this->upsertSingleXref( 'general', 'EXCL', $excl ? '1' : '0' );
+			$this->upsertSingleXref( 'general', 'EXCL', $excl ? '1' : '0', true );
 		} elseif( array_key_exists( 'excl', $pParamHash ) ) {
-			$this->upsertSingleXref( 'general', 'EXCL', $pParamHash['excl'] ? '1' : '0' );
+			$this->upsertSingleXref( 'general', 'EXCL', $pParamHash['excl'] ? '1' : '0', true );
 		} else {
 			// Only set a default the first time - don't clobber an admin's later edit on re-upload.
 			// Default is non-exclusive (independent overlay checkboxes) - exclusive (radio-button,
@@ -414,7 +410,7 @@ class Map extends LibertyMime
 			// group in display_map2.php - only the last one added stayed visible.
 			$existing = $this->mDb->getOne( "SELECT COUNT(*) FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = 'EXCL'", [ $this->mContentId ] );
 			if( empty( $existing ) ) {
-				$this->upsertSingleXref( 'general', 'EXCL', '0' );
+				$this->upsertSingleXref( 'general', 'EXCL', '0', true );
 			}
 		}
 
@@ -525,16 +521,22 @@ class Map extends LibertyMime
 	}
 
 	/** Update-in-place for a multiple=0 xref item - looks up any existing row for
-	 * (content_id, item) first so a re-upload updates rather than duplicates it. */
-	private function upsertSingleXref( string $pGroup, string $pItem, string $pValue ): void {
+	 * (content_id, item) first so a re-upload updates rather than duplicates it.
+	 * $pUseXkey: short scalar values (EXCL, OVERVIEWHEIGHT - template 'value' in schema_inc.php)
+	 * go straight in XKEY (VARCHAR(32), avoids a blob read entirely) instead of the DATA blob -
+	 * only safe for values that actually fit; EXTENT's JSON and SHPPATH's path both exceed 32
+	 * chars, so those keep using DATA (the default, $pUseXkey=false). */
+	private function upsertSingleXref( string $pGroup, string $pItem, string $pValue, bool $pUseXkey = false ): void {
 		$existingXrefId = $this->mDb->getOne( "SELECT `xref_id` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = ?", [ $this->mContentId, $pItem ] );
 		$xrefHash = [
 			'content_id' => $this->mContentId,
 			'item'       => $pItem,
-			'xkey'       => $pItem,
-			'edit'       => $pValue,
+			'xkey'       => $pUseXkey ? $pValue : $pItem,
 			'xorder'     => 0,
 		];
+		if( !$pUseXkey ) {
+			$xrefHash['edit'] = $pValue;
+		}
 		if( $existingXrefId ) {
 			$xrefHash['xref_id'] = $existingXrefId;
 		}
