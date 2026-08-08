@@ -132,6 +132,19 @@ current one) and rewrites both to the *current* server's `MAPPER_PKG_PATH`. `res
 calls it on every content_id resolve (idempotent, cheap no-op once already correct) — self-heals
 across environment syncs automatically, no manual per-server fixup needed.
 
+**What this does *not* cover** (found the hard way 2026-08-08, cloning `lsces`'s real `Map`
+objects into `rdmcloud`): `SHAPEPATH`, `IMAGEPATH`, and the `wms_onlineresource` WMS metadata
+string are genuinely site-specific — not package assets — so they're deliberately outside this
+regex, and nothing else auto-heals them either. Cloning a site's `Map` attachments to stand up a
+new site (same technique used to build `rdmcloud`, see `mapper/CLAUDE.md`) needs these three
+fixed by hand in every `.map` file, or every real `Map` object silently resolves against the
+*source* site's storage forever — `SHAPEPATH` may still happen to work if the underlying dataset
+directories share the same layout across sites (they did here), but `IMAGEPATH` means classic-CGI
+renders write into the *wrong* site's `storage/maps/`. This went unnoticed for a while because the
+real `Map` resolution path (as opposed to the legacy registry array) had never actually been
+exercised on `rdmcloud` before — nothing surfaces this until someone actually browses a mapset via
+its real content-object URL.
+
 ### `Map::expunge()`
 
 `LibertyMime::expunge()` (the inherited default) only cleans up attachments — it deliberately

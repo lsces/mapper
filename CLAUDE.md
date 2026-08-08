@@ -462,3 +462,35 @@ own for the srv9→srv10 direction) rather than left as ad-hoc file copies. A mi
 mixup (comparing two out-of-sync database/filesystem copies as if they were one) and the new
 `switch-site.sh` tool it prompted are infra concerns, not mapper-specific - see
 `/etc/webstack/CLAUDE.md` for both.
+
+## rdmcloud's real Map objects were unusable via their own content-object URL — found + fixed, 2026-08-08
+Chasing a much smaller-sounding report ("`display_map.php` not finding the overview, but no error
+for [a working mapset]") turned into a real, previously-undiscovered bug affecting all 21 of
+`rdmcloud`'s real `Map` objects, not just the one first reported.
+
+First red herring: my own test used the wrong case (`mapset=Over_GB` instead of the always-lowercase
+slug `over_gb`) — genuinely produced "could not be found", but that was my mistake, not the bug.
+Retesting with the correct slug got a login prompt instead — meaning resolution actually succeeded
+and the real issue was a level deeper.
+
+Actual cause: every one of `rdmcloud`'s real `Map` attachments still had `SHAPEPATH`, `IMAGEPATH`,
+and `wms_onlineresource` hardcoded to `lsces` — leftover from the clone that built `rdmcloud`
+(see the "new private cloud service" entry above), never updated. `Map::fixRelativePaths()`
+*looked* like it should have caught this (it's the documented self-heal for exactly this class of
+problem) but its regex only covers package-asset directives (`SYMBOLSET`/`FONTSET`/`TEMPLATE`/etc)
+- `SHAPEPATH`/`IMAGEPATH`/`wms_onlineresource` were never in scope, and never will auto-heal (see
+`MANUAL.md`'s "What this does not cover" note, same section). `IMAGEPATH` was the concerning one
+functionally - a real render would have written its CGI output into **lsces's** `storage/maps/`,
+not rdmcloud's own. That this had never been noticed before is itself informative: nothing had
+ever actually exercised the real content-object resolution path for any of these 21 mapsets -
+they'd only ever been reached via the legacy registry array fallback, which doesn't have this
+problem since it always builds its paths from `MAPPER_PKG_PATH`/`$resolvedKey`, never a baked-in
+site name.
+
+Fixed with a global `/srv/website/lsces/` → `/srv/website/rdmcloud/` (and `https://lsces.uk/` →
+`https://rdmcloud.uk/`) substitution across all 21 files on srv9 (the real source) - safe as a
+blind substitution specifically because `rdmcloud/storage/mapper/`'s dataset symlinks mirror
+`lsces`'s exactly, name for name. Propagated via `srv9-backup` to srv10 and desktop. Verified with
+a real authenticated request (`users_cnxn` cookie-insert technique) against `over_gb` on srv9
+directly: `HTTP 200`, full classic frameset, no "could not be found" - confirms the fix for all 21,
+not just the one originally reported, since they all shared the identical root cause.
