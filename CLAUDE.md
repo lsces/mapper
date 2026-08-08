@@ -443,3 +443,22 @@ mapset-registry description — all now in `MANUAL.md` only).
 Picked up the "left for later" thread from earlier today: `rdmcloud`'s own backup/DR coverage now
 spans desktop, srv9, and srv10 properly. This was entirely backup-script/nginx/cert infra work,
 not mapper-specific — full detail in `/etc/webstack/CLAUDE.md` instead.
+
+## Real Map objects standardized on a consistent naming convention — 2026-08-08
+Auditing the tile-cache "top ends" (see `/etc/webstack/CLAUDE.md`'s tile-sync work, same session)
+surfaced that most real `Map` content objects still carried their `.map` file's unedited `NAME
+Demo` placeholder, or a run-together `MeridianGB2014`-style title with no consistent casing.
+Settled on a standard — see `MANUAL.md`'s new "Naming convention" section (under Mapset
+resolution) for the actual rule and why it has to hold at the MapServer `NAME` layer too, not just
+the DB title.
+
+Applied it to all of `lsces`'s (4) and `rdmcloud`'s (21, `omlras_gb` deliberately excluded - dead,
+no real underlying dataset) real mapsets: both the `.map` file's `NAME` and the `Map`'s DB title,
+kept identical as always. Touched three places per mapset - the real uploaded attachment file, the
+matching `Map` title, and the shared `/etc/webstack/mapserver/` package copy - propagated through
+each site's actual DR mechanism (`firebird-backup`/`firebird-restore` for `lsces`, `srv9-backup` +
+a manual `gbak` restore on srv10 for `rdmcloud`, since that topology has no restore script of its
+own for the srv9→srv10 direction) rather than left as ad-hoc file copies. A mid-session methodology
+mixup (comparing two out-of-sync database/filesystem copies as if they were one) and the new
+`switch-site.sh` tool it prompted are infra concerns, not mapper-specific - see
+`/etc/webstack/CLAUDE.md` for both.

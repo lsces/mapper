@@ -177,6 +177,26 @@ real scale — dozens of mapsets, not thousands). A real `Map`'s slug is tried *
 registry, so it naturally supersedes a stale registry entry sharing the same name — the intended
 migration path, not something to guard against.
 
+### Naming convention
+
+A `Map`'s title and its `.map` file's own `NAME` directive are kept identical — established
+2026-08-08 while standardizing all of `lsces`'s and `rdmcloud`'s real mapsets. Both feed into
+things that need a clean, stable identifier: the title drives `Map::slugify()` (→ URL slug → tile
+cache directory, see above and Tile serving & caching below), and MapServer's own `NAME` is used
+as an XML/HTML-safe token internally (WMS capabilities, form names) — it does **not** accept
+spaces, quotes, or a leading digit, so the convention has to hold at that layer regardless of what
+the DB could otherwise tolerate.
+
+Standard: **Title Case, underscore-separated, year trailing.** `GB`, `OSM`, `RAS`, and `IOM` are
+kept fully uppercase as whole tokens rather than title-cased. Examples: `Meridian_GB_2014`,
+`OSM_Carto_GB`, `VectorMap_District_GB_2020`, `RAS_250_2026`, `IOM_Years`.
+
+Renaming either the title or the `.map` `NAME` has two real costs, not just a cosmetic change:
+existing links using the old slug break (`Map::lookupBySlug()` won't find the new one), and the
+existing on-demand tile cache under the old slug is orphaned (not corrupted, just wasted disk
+until a fresh cache builds under the new name). Worth deciding a mapset's final name before it
+sees real traffic, rather than renaming casually afterward.
+
 ## Pretty URLs
 
 All implemented as nginx rewrites (`bitweaver_rewrites.conf`, shared; plus desktop's separate
