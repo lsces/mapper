@@ -19,16 +19,23 @@ namespace Bitweaver\Mapper;
 
 /**
  * @param int|null $pContentId already-validated positive int, or null
- * @param string $pResolvedMapsetKey a registry key already resolved+validated by the caller
- *   (explicit-but-invalid should have been 404'd by the caller before ever reaching here) -
- *   ignored if $pContentId is given.
+ * @param string $pResolvedMapsetKey a raw, regex-whitelisted key (empty string if none given) -
+ *   ignored if $pContentId is given. Tried first as a real Map's slug (Map::lookupBySlug()),
+ *   then as an old registry key; empty falls back to the registry's own default. Callers don't
+ *   need their own separate "explicit key given but not found" pre-check - a null return here
+ *   already covers every case (no slug match, no registry match, or the content_id-specific
+ *   failures below), so a caller can always just fatalError() straight off a null result.
  * @return array{mapset: array, mapCgiPath: string, gdalWmsPath: ?string, resolvedKey: string, map: ?Map}|null
- *   null means the content_id case failed (not found, unreadable file, or the "does the actual
- *   source exist on this server" gate below) - the registry case can't fail here since the
- *   caller is expected to have already validated $pResolvedMapsetKey exists.
  */
 function mapper_resolve_mapset( ?int $pContentId, string $pResolvedMapsetKey ): ?array {
 	global $gBitDb, $gBitDbName;
+
+	if( !$pContentId && $pResolvedMapsetKey !== '' ) {
+		// Try a real Map object's slug before falling through to the old registry array - see
+		// Map::lookupBySlug()'s own doc comment for why this needs no explicit collision
+		// handling against a same-named registry entry.
+		$pContentId = Map::lookupBySlug( $pResolvedMapsetKey );
+	}
 
 	if( $pContentId ) {
 		$map = new Map( $pContentId );
@@ -36,10 +43,36 @@ function mapper_resolve_mapset( ?int $pContentId, string $pResolvedMapsetKey ): 
 			return null;
 		}
 
-		$mapFilePath = $map->mInfo['map_file']['source_file'] ?? null;
+		// LibertyMime::getSourceFile() - not a plain mInfo['map_file'] array key, which doesn't
+		// exist (found live: 'source_file' was never a real field, so this always silently
+		// returned null before, masked because every earlier test happened to go through a path
+		// that never actually needed a real filesystem path - display_map.php/display_map2.php's
+		// WMS layer only ever needed 'map' as a query-string value handed straight to mapserv,
+		// which happened to already resolve correctly elsewhere; render_tile.php's on-demand
+		// cache was the first caller to actually depend on this check succeeding).
+		// getSourceFile() reads 'file_name' from whatever hash it's given, defaulting to
+		// $this->mInfo (the content object's own top-level fields) when called with no
+		// argument - which doesn't have 'file_name' at all, that lives one level down in the
+		// per-attachment mInfo['map_file'] sub-array (see the class doc comment above).
+		$mapFilePath = $map->getSourceFile( $map->mInfo['map_file'] ?? [] );
 		if( !$mapFilePath || !is_readable( $mapFilePath ) ) {
 			return null;
 		}
+
+		// Self-healing, not just a one-shot fix at upload time - a real Map's stored file may
+		// have been uploaded on a different server (its SYMBOLSET/TEMPLATE/etc paths baked
+		// absolute at that server's own MAPPER_PKG_PATH, see Map::fixRelativePaths()'s own doc
+		// comment) and this DB+storage state can end up mirrored elsewhere (firebird-restore,
+		// desktop <-> srv9/srv10) - cheap enough to re-run on every resolve (idempotent, no-op
+		// once already correct for the current server) rather than trying to catch every sync
+		// path that would otherwise need to remember to fix this up.
+		if( is_writable( $mapFilePath ) ) {
+			$map->fixRelativePaths( $mapFilePath );
+		}
+
+		// mapserver.conf's MS_MAP_PATTERN explicitly allows storage/attachments/ (as well as
+		// the old registry's mapper/ tree) precisely so the real attachment path can be handed
+		// straight to MapServer here - no symlink dance needed, see mapper/CLAUDE.md.
 
 		$generalRows = $gBitDb->getAssoc( "SELECT `item`, `data` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` IN ('EXTENT','SHPPATH','EXCL')", [ $pContentId ] );
 		$extentData = !empty( $generalRows['EXTENT'] ) ? json_decode( $generalRows['EXTENT'], true ) : null;

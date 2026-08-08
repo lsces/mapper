@@ -481,15 +481,25 @@ class Map extends LibertyMime
 	 * normally sits (mapper/map/), so stripping the leading ../ and prefixing MAPPER_PKG_PATH
 	 * reconstructs the correct real location regardless of where the file's own copy is stored.
 	 * See storeParsedMapFileDetails()'s call site. */
-	private function fixRelativePaths( string $pFilePath ): void {
+	/** Public (not private) and safe to call repeatedly, on every resolve - not just once at
+	 * upload time. Matches either a relative "../..." path OR an already-absolute
+	 * "/srv/website/<domain>/mapper/..." one (any domain, including the current one) and
+	 * rewrites both to the CURRENT server's MAPPER_PKG_PATH. The absolute case matters because
+	 * a real Map's stored file bakes in whichever server did the uploading - fine until that
+	 * same DB+storage state gets synced to a different server (desktop's bitweaver5 split vs a
+	 * real server's own lsces docroot - found live via firebird-restore pulling srv10-baked
+	 * paths onto desktop, breaking content_id=7390's TEMPLATE resolution: "/srv/website/lsces/
+	 * mapper/html/form.html doesn't look like a MapServer template" - the file's fine, desktop
+	 * just isn't lsces here). See resolve_mapset_inc.php's call site. */
+	public function fixRelativePaths( string $pFilePath ): void {
 		$content = file_get_contents( $pFilePath );
 		if( $content === false ) {
 			return;
 		}
 		$fixed = preg_replace_callback(
-			'/^(\s*(?:SYMBOLSET|FONTSET|TEMPLATE|HEADER|FOOTER|EMPTY|IMAGE)\s+")(\.\.\/[^"]+)(")/mi',
+			'/^(\s*(?:SYMBOLSET|FONTSET|TEMPLATE|HEADER|FOOTER|EMPTY|IMAGE)\s+")(?:\.\.\/|\/srv\/website\/[^\/"]+\/mapper\/)([^"]+)(")/mi',
 			function( $m ) {
-				return $m[1].MAPPER_PKG_PATH.preg_replace( '#^\.\./#', '', $m[2] ).$m[3];
+				return $m[1].MAPPER_PKG_PATH.$m[2].$m[3];
 			},
 			$content
 		);

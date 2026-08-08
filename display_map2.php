@@ -37,6 +37,7 @@
 require_once( '../kernel/includes/setup_inc.php' );
 use Bitweaver\KernelTools;
 use Bitweaver\HttpStatusCodes;
+use Bitweaver\Mapper\Map;
 require_once( MAPPER_PKG_INCLUDE_PATH.'resolve_mapset_inc.php' );
 use function Bitweaver\Mapper\mapper_resolve_mapset;
 
@@ -79,18 +80,19 @@ if( $gdalWmsPath && is_readable( $gdalWmsPath ) && preg_match( '#<ServerUrl>(.*?
 		'exclusive' => true,
 	];
 } else {
-	// Classic MapServer mapset - one live WMS layer per registry layerList entry. 'map' is
-	// passed as its own field rather than baked into a query string - some output stage between
-	// here and the browser rewrites '&' to '&amp;' even with Smarty's nofilter, so no
-	// '&'-joined string can survive the round trip; Leaflet's WMS layer builds the querystring
-	// client-side instead.
+	// Classic MapServer mapset - one on-demand-cached tile layer per registry layerList entry.
+	// URL is the real /tiles/mapsrv/<mapset>/<layer>/{z}/{x}/{y}.png path (see webstack's
+	// nginx/snippets/tiles.conf), not a direct render_tile.php link - nginx try_files serves a
+	// cache HIT as a plain static file with no PHP/kernel bootstrap involved at all, only a MISS
+	// reaches render_tile.php (see that file's own doc comment). Mapset URL segment is the real
+	// Map's own slug (never the internal 'content_<id>' resolvedKey form) so render_tile.php's
+	// lookup always matches what a hand-typed /mapper/map2/<slug> URL would resolve to.
+	$mapsetUrlKey = $map ? Map::slugify( $map->getTitle() ) : $resolvedMapsetKey;
 	$exclusive = !isset( $mapset['layerExclusive'] ) || $mapset['layerExclusive'];
 	foreach( $mapset['layerList'] as $i => $layerName ) {
 		$layersConfig[] = [
-			'type'      => 'wms',
-			'url'       => '/cgi-bin/mapserv',
-			'map'       => $mapCgiPath,
-			'layer'     => $layerName,
+			'type'      => 'xyz',
+			'url'       => "/tiles/mapsrv/$mapsetUrlKey/$layerName/{z}/{x}/{y}.png",
 			'name'      => $mapset['layerAlias'][$i] ?? $layerName,
 			'visible'   => !empty( $mapset['layerVisible'][$i] ),
 			'exclusive' => $exclusive,
