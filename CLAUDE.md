@@ -604,4 +604,144 @@ objects to srv10 directly and confirmed them working.
   every real `Map` object silently falls back to the fixed 150px default in `display_map2.php`,
   losing the taller-box override GB-scale/portrait mapsets need. Needs a new xref item
   (`general`/`OVERVIEWHEIGHT` or similar) alongside `EXTENT`/`SHPPATH`/`EXCL`, settable from
-  `edit.php`, read back in `resolve_mapset_inc.php`'s content_id branch.
+  `edit.php`, read back in `resolve_mapset_inc.php`'s content_id branch. **Done, 2026-08-08 —
+  see below.**
+
+## On-demand tile cache for classic mapsets, xref XKEY tidy, delete button — 2026-08-08
+Picked up the two follow-ups tagged the night before (list_maps.php launch icons, `overviewHeight`
+xref) - both straightforward, done first. The bigger piece: `display_map2.php`'s Leaflet layer hit
+`/cgi-bin/mapserv` live via a WMS GetMap request on every single pan/zoom for every classic
+mapset (meridian, opmplc, vmdvec, zoomstack, over_gb, etc), zero caching - MapServer re-renders
+the vector data from scratch each time. Since Leaflet's WMS requests are always tile-grid-aligned
+(256x256, EPSG:3857), the response for a given z/x/y is pixel-identical to a real pre-rendered
+XYZ tile at that coordinate - built `render_tile.php` to reshape this into genuine z/x/y.png
+files on disk, written once per tile on first request and served directly by nginx thereafter
+(new `/tiles/mapsrv/<mapset>/<layer>/{z}/{x}/{y}.png` location in webstack's
+`nginx/snippets/tiles.conf`, `try_files` a real cached file first - a HIT never touches PHP at
+all). `display_map2.php` now points classic mapsets at real tile URLs instead of raw WMS params,
+reusing the same client-side `xyz` tile-layer code already used for renderd-backed mapsets.
+
+Two real bugs found building this: `http_build_query()`'s default arg separator came out as
+`&amp;` (this php.ini's `arg_separator.output`), silently truncating every WMS param after the
+first for a direct `proc_open()` call to `mapserv` - fixed with an explicit `'&'` separator.
+And `resolve_mapset_inc.php` was reading a `'source_file'` key that never existed on a real
+Map's `mInfo['map_file']` array - masked until now because nothing had actually needed the
+resolved filesystem path to succeed before (`display_map.php`/`display_map2.php`'s old WMS path
+only ever needed `'map'` as a query-string value, resolved correctly elsewhere) - fixed via
+`LibertyMime::getSourceFile( $map->mInfo['map_file'] )`, the real accessor.
+
+**Cross-server path self-heal**: a real Map's stored mapfile bakes its `SYMBOLSET`/`TEMPLATE`/etc
+paths absolute at upload time, anchored to whichever server did the uploading
+(`Map::fixRelativePaths()`). Fine until that DB+storage state gets mirrored to a different
+server (desktop's `bitweaver5` split vs a real server's own `lsces` docroot) - found live via a
+`firebird-restore` pulling srv10-baked paths onto desktop, breaking `content_id=7390`'s TEMPLATE
+resolution. Generalized `fixRelativePaths()` to also match an already-absolute
+`/srv/website/<any-domain>/mapper/...` prefix (not just relative `../`), made it public, and
+call it on every resolve (idempotent, cheap no-op once already correct) instead of only once at
+upload - self-heals across environment syncs automatically now.
+
+**Xref schema tidy**: `EXCL`/`OVERVIEWHEIGHT` moved from the `text` template (value redundantly
+duplicated into `XKEY`, real value in the `DATA` blob) to the existing generic `value` template
+(`view_xref_value_item.tpl`/`edit_xref_value_item.tpl` - value straight in `XKEY(32)`, `XKEY_EXT`
+as a free-text "Notes" field, no blob at all). New `PROJECTION` xref item added the same way -
+`Map::parseMapFile()` now extracts the mapfile's own `PROJECTION` block, strips PROJ.4's `init=`
+prefix for a clean short value in `XKEY` (e.g. `epsg:27700`), keeps the full original string in
+`XKEY_EXT(250)` as a safety margin (a raw, fully-spelled-out PROJ.4 string with no `init=`
+shorthand can run 100+ chars - every real mapfile in this project currently uses the simple form,
+confirmed by grepping all of them, but the fallback exists for when that changes). Shown per-row
+on `list_maps.php` - turned out that page doesn't call `Map::getList()` at all, it goes through
+`LibertyContent::getContentList()` (a fully independent generic query-builder), so the column
+needed a small batched follow-up query in `get_map_list_inc.php` instead of a JOIN in a method
+that was never actually running.
+
+Found and fixed a real regression while migrating existing data: the 5 real Map objects'
+existing `EXCL` rows still had the *old* xkey-holds-item-name pattern from before the schema
+change, which briefly made every mapset resolve as non-exclusive - migrated via
+`UPDATE ... SET xkey = CAST(data AS VARCHAR(32))` (reads the real value straight out of the old
+blob rather than manual transcription) - same bug hit srv9 (all 22 test mapsets) and srv10 (its
+4) once deployed there too, fixed the same way on both.
+
+Also removed the `EXCL` checkbox from both `edit.php` and `upload_map.php` - it's fully
+redundant now (the mapfile's own `# MAPPER: EXCL=...` comment still wins at upload time, and
+it's editable afterwards through the standard generic xref group tabs regardless), and the
+upload form's version never applied correctly to a batch-archive import's many files anyway.
+
+**Delete button**: `view.php` had Edit but no Delete at all - added alongside it (same
+`hasUpdatePermission()` gate, matching `stock/view_component.tpl`'s convention), with `edit.php`
+handling `delete=1` via the standard `confirmDialog()`-then-`expunge()` two-step flow. Found a
+real bug doing this: `LibertyMime::expunge()` only cleans up attachments - it deliberately never
+calls `parent::expunge()`, so the actual content-deletion logic
+(`LibertyContent::expunge()` - history, xrefs, permissions, favorites, the `liberty_content` row
+itself) never ran. The delete flow reported success (clean redirect) but the object was still
+there afterwards. Stock's own components get this for free since `StockComponent` extends
+`LibertyContent` directly (no attachment involved); `Map` extends `LibertyMime`, so it needed
+both halves explicitly - added a `Map::expunge()` override calling both, verified end-to-end
+(DB row, history, xrefs, and the physical attachment file all confirmed gone after a real delete).
+
+More floaticon options (Print, matching stock's BOM print) flagged for later - wants the xref
+`data`-blob JSON display tidied up first (a generic `json` xref template, discussed but not
+built - `EXTENT`'s JSON and `LAYER`'s per-layer metadata are the two xref items that would
+benefit).
+
+**Deployed to both srv9 and srv10** same session - both were still on last night's pre-tile-cache
+commit, so this was effectively one combined deploy covering last night's fixes too. Also ran the
+same `liberty_xref_item` schema tidy and `EXCL` data migration on both servers by hand (installer
+not yet exercised for this - see `[[feedback_installer_permission_cleanup]]`, this was a
+deliberate manual step, not a substitute for eventually testing that path). Found a real data gap
+while verifying: `ras250_2026` 404s on srv10 - its `Map` object exists but the actual raster tile
+data (`storage/mapper/ras250_gb_2026/`) was never copied there, confirmed via the "does the
+source exist" gate correctly rejecting it rather than a code bug. Not fixed (disk space is tight
+on srv10, not copying data across without a deliberate decision) - the user deleted the `Map`
+object on both srv10 and desktop instead, matching the plan below.
+
+## rdmcloud.uk — new private cloud service on srv9, 2026-08-08
+Real architectural fix for a recurring friction point this whole session: `lsces` was being
+asked to serve two incompatible roles at once - the production domain that must mirror
+srv10 cleanly (subject to the nightly `firebird-backup` srv10→desktop chain and manual
+`firebird-restore` to srv9), *and* the active mapper development/test bed. Every bit of friction
+hit this session (desktop's stale test data, needing the same `EXCL` migration on three separate
+machines, "will tonight's backup mess things up again") traced back to that same conflict.
+`rdmcloud.uk` is the fix - a genuinely separate site, srv9-only, deliberately kept **out** of the
+srv10-authoritative backup/restore chain (its own DR coverage, srv9-side, still to be built -
+explicitly not folded into the existing `firebird-backup`/`firebird-restore` scripts, which
+assume srv10 is always the source).
+
+Built as a full clone of `lsces` (DB via `gbak` backup/restore, `config/`+`storage/` via `cp -a`),
+then given its own identity:
+- New Firebird DB `rdmcloud` (alias registered in the shared `databases.conf` - harmless to share
+  across all three machines even though the `.fdb` only exists on srv9, same as any unused alias).
+- `config_inc.php` symlinked to a new `/etc/webstack/domains/rdmcloud/config_inc.php` (matching
+  the `lsces` pattern properly, not left as the real, Kate-breakable file the clone produced) -
+  only `$gBitDbName` needed changing, `$gBitDbHost`/`$gTempDir` both derive from it automatically.
+- Own theme (`config/themes/rdmcloud`, cloned+renamed from `lsces`'s, moved into
+  `/etc/webstack/domains/rdmcloud/themes/rdmcloud/` matching the same real-content-in-webstack
+  symlink-from-site pattern the `lsces` theme already uses).
+- Own `mapper_tiles` cache, deliberately *not* shared with `lsces`'s
+  (`/media3/rdmcloud-mapper-tile-cache`, separate from `/media3/mapper-tile-cache`) - confirmed
+  isolated and working live against `ras250_2026` (cache miss → real mapserv render → cache hit
+  on the next request, tiles landing in the right directory).
+- `site_title` updated ("RDM Cloud", not the cloned "LSCES Main Site") - session cookie
+  correctly came out as `bit-user-rdmcloud` once this and a stale `auth_config.php`/APCu cache
+  were cleared (`session_name()` is computed by stripping/lowercasing the literal `site_title`
+  text, not a fixed `<name>mainsite` template - the `mainsite` part was only ever literal text
+  that happened to be in `lsces`'s own title).
+- Found and fixed a real leftover-from-clone bug along the way: `kernel_config.site_temp_dir`
+  still said `/srv/tmp/lsces/` post-clone, which meant Smarty was compiling/caching templates
+  against the *old* site's temp path - manifested as the theme CSS still resolving to
+  `lsces.css` long after every other theme-selection setting (`style` config, the symlink itself)
+  was already correctly `rdmcloud`. Fixed by updating the DB value and creating the real
+  `/srv/tmp/rdmcloud/` directory; a fresh Smarty compile against the corrected path picked up
+  the right theme immediately.
+- nginx vhost (`98-rdmcloud.uk.vhost.conf`, based directly on `lsces`'s own real-server vhost)
+  created straight on srv9's filesystem, deliberately **not** pushed to the shared webstack
+  repo - `skip-worktree`'d, and kept staged-but-uncommitted rather than committed, so a future
+  `git push` from srv9 (for anything unrelated) can never leak it upstream. SSL cert for
+  `rdmcloud.uk` already existed (issued back in July, unclear exactly when/why, but real and
+  valid) - no cert-bootstrap dance needed this time. DNS already resolves to the same home IP as
+  every other domain here, so no DNS changes were needed either - purely an nginx-side `server_name`
+  addition.
+
+**Deliberately left for later**: `rdmcloud`'s own backup/DR coverage (srv9-side, not the existing
+scripts); stripping `lsces` back down to match `srv10`'s minimal real set now that the "stuff I'm
+hiding from the other sites" (the full 22-mapset test batch, OS-Data variety, etc) has a proper
+home in `rdmcloud` instead.
