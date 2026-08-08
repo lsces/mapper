@@ -20,7 +20,15 @@
 	</tr>
 	{foreach from=$contentList item=item}
 		<tr class="{cycle values='odd,even'}">
-			<td>{$item.display_link}</td>
+			<td>
+				{* Quick-launch icons ahead of the metadata/view.php link - "map" (classic
+				MapServer frameset, display_map.php) and "map2" (Leaflet viewer,
+				display_map2.php). content_id-based, not the pretty slug URL - both viewers
+				already resolve content_id directly, no slug-lookup round trip needed here. *}
+				<a title="{tr}Classic viewer{/tr}" href="{$smarty.const.MAPPER_PKG_URL}display_map.php?content_id={$item.content_id}">{biticon ipackage="icons" iname="gnome-globe" iexplain="Classic viewer"}</a>
+				<a title="{tr}Leaflet viewer{/tr}" href="{$smarty.const.MAPPER_PKG_URL}display_map2.php?content_id={$item.content_id}">{biticon ipackage="icons" iname="zoom-original" iexplain="Leaflet viewer"}</a>
+				{$item.display_link}
+			</td>
 			<td>{displayname real_name=$item.creator_real_name user=$item.creator_user}</td>
 			<td>{displayname real_name=$item.modifier_real_name user=$item.modifier_user}</td>
 			<td>{$item.last_modified|bit_short_date}</td>

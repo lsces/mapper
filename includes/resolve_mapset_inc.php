@@ -74,10 +74,11 @@ function mapper_resolve_mapset( ?int $pContentId, string $pResolvedMapsetKey ): 
 		// the old registry's mapper/ tree) precisely so the real attachment path can be handed
 		// straight to MapServer here - no symlink dance needed, see mapper/CLAUDE.md.
 
-		$generalRows = $gBitDb->getAssoc( "SELECT `item`, `data` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` IN ('EXTENT','SHPPATH','EXCL')", [ $pContentId ] );
+		$generalRows = $gBitDb->getAssoc( "SELECT `item`, `data` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` IN ('EXTENT','SHPPATH','EXCL','OVERVIEWHEIGHT')", [ $pContentId ] );
 		$extentData = !empty( $generalRows['EXTENT'] ) ? json_decode( $generalRows['EXTENT'], true ) : null;
 		$shapePath = $generalRows['SHPPATH'] ?? null;
 		$exclusive = !isset( $generalRows['EXCL'] ) || $generalRows['EXCL'] === '1';
+		$overviewHeight = !empty( $generalRows['OVERVIEWHEIGHT'] ) ? (int)$generalRows['OVERVIEWHEIGHT'] : null;
 
 		// "does the source actually exist on this server" - equivalent to the old registry's
 		// dataDir check, but driven by the mapfile's own SHAPEPATH (extracted at upload time)
@@ -115,6 +116,7 @@ function mapper_resolve_mapset( ?int $pContentId, string $pResolvedMapsetKey ): 
 				'layerLink'        => $layerLink,
 				'layerExclusive'   => $exclusive,
 				'extent'           => $extentData ? "{$extentData['minX']} {$extentData['minY']} {$extentData['maxX']} {$extentData['maxY']}" : null,
+				'overviewHeight'   => $overviewHeight,
 			],
 			'mapCgiPath'  => $mapFilePath,
 			'gdalWmsPath' => $gdalWmsPath,

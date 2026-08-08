@@ -265,6 +265,22 @@ class Map extends LibertyMime
 				// from the edit page, not just settable via upload (file comment or checkbox).
 				$this->upsertSingleXref( 'general', 'EXCL', $pParamHash['excl'] ? '1' : '0' );
 			}
+
+			// overview_height - display_map2.php's per-mapset overview-box height override (see
+			// that file's own doc comment on overviewHeight; the old registry array had this as
+			// a static per-mapset key, real Map objects never got an equivalent until now, so
+			// every one silently fell back to the fixed 150px default). No mapfile-comment
+			// equivalent (unlike EXCL) - always a plain edit-form field, independent of upload.
+			if( array_key_exists( 'overview_height', $pParamHash ) ) {
+				$height = (int)$pParamHash['overview_height'];
+				if( $height > 0 ) {
+					$this->upsertSingleXref( 'general', 'OVERVIEWHEIGHT', (string)$height );
+				} else {
+					// Blank/zero means "use the default" - clear any existing override rather
+					// than storing a meaningless 0.
+					$this->mDb->query( "DELETE FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = 'OVERVIEWHEIGHT'", [ $this->mContentId ] );
+				}
+			}
 			$this->CompleteTrans();
 			$this->load();
 			return true;

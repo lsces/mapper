@@ -33,6 +33,14 @@
 				</div>
 			</div>
 
+			<div class="form-group">
+				{formlabel label="Overview box height (px)" for="map-overview-height"}
+				{forminput}
+					<input type="number" class="form-control" name="overview_height" id="map-overview-height" value="{$mapOverviewHeight|escape}" min="1" style="width:8em">
+					{formhelp note="Leave blank for the default 150px square box. Taller GB-scale/portrait extents usually need more - see mapper/CLAUDE.md."}
+				{/forminput}
+			</div>
+
 			{include file="bitpackage:liberty/edit_services_inc.tpl" serviceFile="content_edit_mini_tpl"}
 
 			{if $gXrefInfo->mGroups}
