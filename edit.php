@@ -22,6 +22,13 @@ $gBitSmarty->assign( 'gContent', $gContent );
 
 if( !empty( $_REQUEST['cancel'] ) ) {
 	KernelTools::bit_redirect( $gContent->getDisplayUrl() );
+} elseif( !empty( $_REQUEST['reload'] ) ) {
+	// Re-parse whatever's already on disk and re-sync every xref field from it - for a
+	// mapfile that's already correct on disk but whose stored xref data has drifted (the
+	// database was never re-synced after a direct server-side edit). See
+	// Map::reloadFromDisk()'s own doc comment.
+	$gContent->reloadFromDisk();
+	KernelTools::bit_redirect( MAPPER_PKG_URL.'edit.php?content_id='.$gContent->mContentId );
 } elseif( !empty( $_REQUEST['save'] ) ) {
 	$pParamHash = $_REQUEST;
 	$pParamHash['content_id'] = $gContent->mContentId;

@@ -1,7 +1,9 @@
 {strip}
 <div class="edit mapper">
 	<header>
-		<div class="floaticon"></div>
+		<div class="floaticon">
+			<a title="{tr}Reload From File{/tr}: {tr}re-parse the file already on disk and re-sync EXTENT/SHPPATH/PROJECTION/layers from it - use after editing the .map file directly on the server, without uploading anything{/tr}" href="{$smarty.const.MAPPER_PKG_URL}edit.php?content_id={$gContent->mContentId}&amp;reload=1">{biticon ipackage="icons" iname="view-refresh" iexplain="Reload From File"}</a>
+		</div>
 		<h1>{tr}Edit Map{/tr}: {$gContent->getTitle()|escape}</h1>
 		<small><a href="{$smarty.const.MAPPER_PKG_URL}view.php?content_id={$gContent->mContentId}">{$gContent->getTitle()|escape}</a></small>
 	</header>
