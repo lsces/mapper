@@ -25,7 +25,7 @@ function computeCoverExtent(extentStr, frameWidth, frameHeight) {
 //check if window is already open
 //set to false on window open
 var tooglelink = true;
-var toogleimpress = true;
+var toggleabout = true;
 var tooglehelp = true;
 
 //open layer link (thematic layer) in a new window
@@ -38,10 +38,10 @@ function WindowLink(i) {
 //open window
 function WindowFirst(windowName){
 	switch (windowName){
-		case "Impressum":
-			ImpressWindow = open(impressURL,"Impressum","width=" + ImpressWidth + ",height=" + ImpressHeight + ",scrollbars=yes,resizable=yes");
-			toogleimpress = false;
-			setTimeout("ImpressWindow.focus()",100);
+		case "About":
+			AboutWindow = open(aboutURL,"About","width=" + AboutWidth + ",height=" + AboutHeight + ",scrollbars=yes,resizable=yes");
+			toggleabout = false;
+			setTimeout("AboutWindow.focus()",100);
 			break;
 		case "Help":
 			HelpWindow = open(helpURL,"Help","width=" + HelpWidth + ",height=" + HelpHeight + ",scrollbars=yes,resizable=yes");
@@ -54,12 +54,12 @@ function WindowFirst(windowName){
 //check if window is already open. bring it to front or open it again
 function WindowSecond(windowName){
 	switch (windowName) {
-		case "Impressum":
-			if (ImpressWindow.closed == true){
-				ImpressWindow = open(impressURL,"Impressum","width=" + ImpressWidth + ",height=" + ImpressHeight + ",scrollbars=yes,resizable=yes");
-				setTimeout("ImpressWindow.focus()",100);
+		case "About":
+			if (AboutWindow.closed == true){
+				AboutWindow = open(aboutURL,"About","width=" + AboutWidth + ",height=" + AboutHeight + ",scrollbars=yes,resizable=yes");
+				setTimeout("AboutWindow.focus()",100);
 			} else {
-				setTimeout("ImpressWindow.focus()",100);
+				setTimeout("AboutWindow.focus()",100);
 			}
 			break;
 		case "Help":
@@ -75,16 +75,16 @@ function WindowSecond(windowName){
 
 //set initial tool
 var tool = new String;
-var IdentifyURL = IdentifyURL_o;
+var InfoURL = InfoURL_o;
 var ZoomInURL = ZoomInURL_o;
 var ZoomOutURL = ZoomOutURL_o;
 var PanURL = PanURL_o;
 var ZoomInURL = ZoomInURL_o;
 
 switch (initialTool) {
-	case "IdentifyTool":
-		tool = "identify";
-		IdentifyURL = IdentifyURL_u;
+	case "InfoTool":
+		tool = "info";
+		InfoURL = InfoURL_u;
 		break;
 	case "ZommInTool":
 		tool = "zoomin";
@@ -104,7 +104,7 @@ switch (initialTool) {
 
 //set toolpic
 function turnUnselected() {
-	if ("identify") parent.ToolFrame.document.identify.src = IdentifyURL_o;
+	if ("info") parent.ToolFrame.document.info.src = InfoURL_o;
 	if ("zoomin") parent.ToolFrame.document.zoomin.src = ZoomInURL_o;
 	if ("zoomout") parent.ToolFrame.document.zoomout.src = ZoomOutURL_o;
 	if ("pan") parent.ToolFrame.document.pan.src = PanURL_o;
@@ -112,7 +112,7 @@ function turnUnselected() {
 		
 function turnSelected(selTool) {
 	turnUnselected();
-	if (selTool == "identify") parent.ToolFrame.document.identify.src = IdentifyURL_u;
+	if (selTool == "info") parent.ToolFrame.document.info.src = InfoURL_u;
 	if (selTool == "zoomin") parent.ToolFrame.document.zoomin.src = ZoomInURL_u;
 	if (selTool == "zoomout") parent.ToolFrame.document.zoomout.src = ZoomOutURL_u;
 	if (selTool == "pan") parent.ToolFrame.document.pan.src = PanURL_u;
@@ -158,11 +158,11 @@ function setTool(selectedTool) {
 									
 		break;
 		
-		case "identify":
+		case "info":
 			parent.ScriptFrame.mode="query";
-			tool = "identify";
-		
-		break;	
+			tool = "info";
+
+		break;
 		
 		case "help":
 			if (tooglehelp == true){

@@ -74,7 +74,7 @@ var toolURL = htmlPath + "tool.html";
 var legendURL = htmlPath + "legend.html";
 var linkURL = htmlPath  + "link.html";
 var helpURL = htmlPath + "help.html";
-var impressURL = htmlPath + "impress.html"
+var aboutURL = htmlPath + "about.html"
 var imagePath1 = applicationPath + "graphics/";
 var imagePath2 = applicationPath + "graphics/";
 var styleURL = applicationPath + "styles/client.css";
@@ -124,20 +124,20 @@ var FormFrameColor = "#FFFFFF";
 var ToolFrameColor = "#FFFFFF";
 //... LegendFrame
 var LegendFrameColor = "#FFFFFF";
-//... Identify Results (opens in new window)
-var IdentifyWinColor = "#FFFFFF";
+//... Info Results (opens in new window)
+var InfoWinColor = "#FFFFFF";
 //... Layer links (opens in new windows)
 var LinkWinColor = "#FFFFFF";
 //... help window
 var HelpWinColor = "#FFFFFF";
-//... Impressum
-var ImpressWinColor = "#FFFFFF";
+//... about window
+var AboutWinColor = "#FFFFFF";
 
 //*************************Properties for the Toolbar**********************
 //Which tools should be visible?
 //true = visible, false = not visible
-//Identify
-var IdentifyTool = true;
+//Info
+var InfoTool = true;
 //Zoom In
 var ZoomInTool = true;
 //Zoom out
@@ -160,14 +160,14 @@ var autoRefresh = false;
 var jumpDist = 200;
 
 //Which tool should be selected on application load
-//use any of the following: IdentifyTool, ZoomInTool, ZoomOutTool oder PanTool
+//use any of the following: InfoTool, ZoomInTool, ZoomOutTool or PanTool
 var initialTool = "ZoomInTool";
 
 //Path to the tool button images
 // *_u = high, _o = low
-// ... IdentifyTool
-var IdentifyURL_o = imagePath1 + "info_high.gif";
-var IdentifyURL_u = imagePath1 + "info_low.gif";
+// ... InfoTool
+var InfoURL_o = imagePath1 + "info_high.gif";
+var InfoURL_u = imagePath1 + "info_low.gif";
 // ... ZoomInTool
 var ZoomInURL_o = imagePath1 + "zoomin_high.gif";
 var ZoomInURL_u = imagePath1 + "zoomin_low.gif";
@@ -197,7 +197,7 @@ toolName[5] = "Zoom In";
 toolName[6] = "Zoom Out";
 toolName[7] = "Full Extent";
 toolName[8] = "Pan";
-toolName[9] = "Identify";
+toolName[9] = "Info";
 toolName[10] = "Help";
 toolName[11] = "Legend select";
 
@@ -207,14 +207,26 @@ toolName[11] = "Legend select";
 var HelpWidth = 400;
 var HelpHeight = 800;
 
+//size of the about window
+var AboutWidth = 400;
+var AboutHeight = 300;
+
 //titles for windows
-//title for the identify windows
-var identifyTitle = "Help Window";
+//title for the info windows
+var infoTitle = "Info Window";
 //title for the help window
 var helpTitle = "Help Window"
 
 var LinkWidth = 800;
 var LinkHeight = 600;
+
+//query.js's showQuery() branches on this: true opens results in the popup
+//window it already builds (title "Query", 400x400); false navigates a frame
+//called QueryFrame instead - which has never existed anywhere in this
+//frameset (see templates/center_view_map.tpl's real frame list). Left
+//undefined before, so the popup path was silently unreachable and clicking
+//Info on a feature did nothing visible. See mapper/CLAUDE.md.
+var openNewWin = true;
 
 //***********properties for the status graphic (displayed when map is loaded)***************
 //size of the image

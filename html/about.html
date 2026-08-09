@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>About this map viewer</title>
+<meta charset="UTF-8">
+<script language="javascript">
+//Shorthand variables
+var o = opener.parent.ScriptFrame;
+var styleLink = document.createElement('link');
+styleLink.rel = 'stylesheet';
+styleLink.type = 'text/css';
+styleLink.href = o.styleURL;
+document.head.appendChild(styleLink);
+</script>
+</head>
+
+<body>
+<script language="javascript">
+document.body.setAttribute('bgcolor', o.AboutWinColor);
+document.body.setAttribute('leftmargin', '11');
+document.body.setAttribute('topmargin', '9');
+document.body.setAttribute('marginwidth', '11');
+document.body.setAttribute('marginheight', '9');
+document.body.setAttribute('link', o.SharedColor2);
+document.body.setAttribute('vlink', o.SharedColor2);
+document.body.setAttribute('alink', o.SharedColor2);
+var aboutHtml = '<table cellspacing="0" cellpadding="2" border="0">';
+aboutHtml += '<tr><td colspan="3" class="heading-sm">About this map viewer</td></tr>';
+aboutHtml += '<tr><td colspan="3" height="8"><img src="' + o.spacerPixelURL + '" width="356" height="1" border="0" alt=""></td></tr>';
+aboutHtml += '<tr><td colspan="3">A self-hosted MapServer-based viewer (Bitweaver\'s mapper package), built on a mix of Ordnance Survey open data, OpenStreetMap data, and locally maintained archives.</td></tr>';
+aboutHtml += '<tr><td colspan="3" height="10"></td></tr>';
+aboutHtml += '<tr><td colspan="3">Each mapset\'s own title and layer list describe its specific data source; this window is deliberately generic across every mapset the viewer serves.</td></tr>';
+aboutHtml += '</table>';
+document.body.insertAdjacentHTML('beforeend', aboutHtml);
+</script>
+</body>
+</html>

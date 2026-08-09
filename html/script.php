@@ -63,8 +63,8 @@ function closeWindows() {
 	if (tooglehelp == false) {
 		HelpWindow.close();
 	}
-	if (toogleimpress == false) {
-		ImpressWindow.close();
+	if (toggleabout == false) {
+		AboutWindow.close();
 	}
 }
 

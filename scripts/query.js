@@ -1,6 +1,6 @@
-//query functions (identify, itemnquery)
+//query functions (info, itemnquery)
 
-function identify(e) {
+function info(e) {
 	getIxIy(e);
 }
 

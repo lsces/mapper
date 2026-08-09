@@ -263,8 +263,8 @@ function whichTool(e) {
 				startPan(e);
 				return false;	 
 			}
-			if (tool == "identify"){
-				identify(e);
+			if (tool == "info"){
+				info(e);
 				return false;
 			}
 	}
@@ -275,7 +275,7 @@ function whichTool(e) {
 function stop(e) {
 		if (tool == "zoomin" || tool == "zoomout") stopBox(e);
 		if (tool == "panning") stopPan(e);
-		if (tool == "identify") makeQueryURL(e);
+		if (tool == "info") makeQueryURL(e);
 }
 
 

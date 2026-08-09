@@ -30,7 +30,7 @@
  * gdaltransform, correct regardless of the mapfile's own CRS), cover-fit to the frame the same
  * way the old MapFrame's computeCoverExtent() did.
  *
- * Still not done: legend and identify/tool panels, WMS support for anything the *_gdalwms.xml
+ * Still not done: legend and info/tool panels, WMS support for anything the *_gdalwms.xml
  * sidecar check misses.
  */
 
