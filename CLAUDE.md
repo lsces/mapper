@@ -592,3 +592,7 @@ were gone, but no reason to leave dead symlinks lying around. `'iom'` migrating 
 object too is a real future step, but needs the installer's own per-package default/demo handling
 built first (see `[[feedback_installer_permission_cleanup]]`) since `'default'` has no database
 equivalent yet - not actioned.
+
+**Verified clean across all three machines afterward**: desktop/srv9/srv10 all have the identical
+trimmed `lsces` registry, `rdmcloud` has no `mapper_mapsets.php` anywhere, and none of the three
+has a dangling `/srv/website/rdm/tiles` symlink left.
