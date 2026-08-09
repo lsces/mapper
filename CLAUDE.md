@@ -571,3 +571,24 @@ anything checking the real archive. Fixed by merging the 602 stranded tiles (all
 `meridian_gb_2016`, the only mapset touched while this was broken) into the real archive, then
 replacing the bare directory with a proper `-> /home/media1/Maps` symlink. Single shared path, not
 per-site, so this fixes `lsces` and `rdmcloud` on desktop alike in one go.
+
+## lsces's legacy registry trimmed to just its default fallback — 2026-08-09
+Verifying srv9/srv10 after the pulls above surfaced the meridian stray-folder bug again (same
+mechanism as the srv10 entry above) — but this time traced to the real root cause instead of
+patched around it. `lsces` has exactly 4 real `Map` objects (`Meridian_GB_2014`,
+`MiniScale_GB_2026`, `Over_GB`, `IOM_Years`) and `list_maps.php` only ever surfaces real `Map`
+objects — so every one of `mapper_mapsets.php`'s other ~18 entries (`meridian_2016`, `minisc_2019`,
+`opmplc_*`, `vmdvec_*`, `osm_*`, `ras250_2026`, `omlras_gb`, `zoomstack_2026`, `osmcarto_*`,
+`iom_2001`, `iom_2007_25k`) was dead, unreachable duplication — nothing on `lsces` ever links to
+them, so it was never a "broken/invisible mapset" bug (an early wrong turn this session), just
+harmless dead weight until a stale entry's slug drifted from its data folder's name and started
+silently forking the tile cache (as happened to `meridian_2014` twice today). Trimmed
+`/etc/webstack/domains/lsces/mapper_mapsets.php` down to just `'iom'` (the no-mapset-given
+default, no real `Map` object of its own yet) - `rdmcloud` already proves the end state works,
+with all 21 of its mapsets real `Map` objects and no `mapper_mapsets.php` file at all. Also removed
+two now-fully-dangling `/srv/website/rdm/tiles` symlinks (desktop, srv10) left over from before
+today's `tiles/<name>` → `<name>/tiles` restructuring - harmless once the entries referencing them
+were gone, but no reason to leave dead symlinks lying around. `'iom'` migrating to a real `Map`
+object too is a real future step, but needs the installer's own per-package default/demo handling
+built first (see `[[feedback_installer_permission_cleanup]]`) since `'default'` has no database
+equivalent yet - not actioned.
