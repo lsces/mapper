@@ -151,8 +151,14 @@ if( !is_file( $cacheFile ) ) {
 	}
 }
 
+// 404, not 502 - matches tile.php's own convention for "no tile here" (a missing renderd
+// metatile entry is also 404, never 502). This path covers both a genuine render failure
+// (mapserv crashed, bad WMS params) and a legitimate no-data coordinate - can't cleanly tell
+// those apart from mapserv's output alone, and either way this isn't "upstream is down", which
+// is what 502 actually means. A 502 here reads as a real outage to any log/monitoring tooling
+// watching for it; 404 is the correct "expected, not exceptional" signal for a missing tile.
 if( !is_file( $cacheFile ) ) {
-	http_response_code( 502 );
+	http_response_code( 404 );
 	exit;
 }
 
