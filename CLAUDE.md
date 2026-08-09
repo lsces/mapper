@@ -551,3 +551,23 @@ together. **Direction flagged for later, not actioned**: `iom_years`' individual
 with `iom_years` itself becoming the "view several in parallel" convenience layer rather than the
 only entry point. Same idea applies to future additional editions of `over_gb`/`omlras_gb`. Not
 started; current structure "is looking very good" per direct user feedback, revisit later.
+
+## Desktop `Maps/` brought in line with srv9 — 2026-08-09
+Desktop's own `Maps/` archive (flagged not-done in the entry above) got the same treatment:
+`meridian_2014`/`merid2_essh_gb_2016` renamed to match srv9, three more leftover bucket-style
+folders merged in (`mapper-tile-cache` → per-map `tiles/`, discarding stale/duplicate entries same
+as the srv9 precedent; `IOM-Historic-Imagery` → `iom_2001`/`iom_2007_25k`'s `tiles/`; a 367GB
+`OSM-Tiles/tiles/` → `osmcarto-gb`/`osmcarto-iom`/`os-style`, all three genuinely missing from
+desktop's `Maps/` until now), plus `.map` file copies added throughout. `osmcarto-midlands`
+(17GB, an intermediate region-limited build stage, tile counts a small subset of the completed
+`osmcarto-gb` build at every zoom checked) discarded as superseded; the separate
+`OSM-Tiles-Midlands/` folder (build logs/source pbf, not tile output) left alone.
+
+**Real bug found while verifying live**: `/srv/website/rdm/maps` — the junction every server is
+supposed to have pointing at its own `Maps/` archive (`/media3/Maps` on srv9, etc) — was never
+actually created on desktop. It existed as a bare directory instead of a symlink, so every tile
+render this whole session had been writing into a disconnected phantom location, invisible to
+anything checking the real archive. Fixed by merging the 602 stranded tiles (all under
+`meridian_gb_2016`, the only mapset touched while this was broken) into the real archive, then
+replacing the bare directory with a proper `-> /home/media1/Maps` symlink. Single shared path, not
+per-site, so this fixes `lsces` and `rdmcloud` on desktop alike in one go.
