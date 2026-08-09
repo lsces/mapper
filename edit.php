@@ -26,6 +26,26 @@ if( !empty( $_REQUEST['cancel'] ) ) {
 	$pParamHash = $_REQUEST;
 	$pParamHash['content_id'] = $gContent->mContentId;
 	$pParamHash['overview_height'] = $_REQUEST['overview_height'] ?? '';
+	if( !empty( $_FILES['map_file']['name'] ) ) {
+		// A replacement file was uploaded - store()'s own upload branch (see its doc comment)
+		// re-parses this exactly like a fresh upload would, same as fisheye's edit_image.php
+		// re-purposes its own single file input for both initial upload and later replacement.
+		//
+		// attachment_id must be threaded through explicitly here - mime_default_verify()'s
+		// isset($upload['attachment_id']) check is how it decides "update" vs "brand new
+		// attachment" (see its own "little cluge" comment); a Map has exactly one attachment,
+		// created with attachment_id == content_id (LibertyMime's own convention for a
+		// content object's first upload - see mime_default_verify()), so that's always the
+		// right value to pass here. Omitting it (found live 2026-08-09, editing content_id
+		// 7406) makes it fall through to the brand-new-attachment path, which tries to INSERT
+		// a fresh liberty_files row using a freshly GenID()'d id that can collide with an
+		// entirely unrelated existing row - a real, previously-unexercised bug in the shared
+		// mime.flatdefault.php plugin (its own code even flags this as an open @todo), not
+		// something specific to mapper.
+		$fileUpload = $_FILES['map_file'];
+		$fileUpload['attachment_id'] = $gContent->mContentId;
+		$pParamHash['_files_override'] = [ 'map_file' => $fileUpload ];
+	}
 	if( $gContent->store( $pParamHash ) ) {
 		KernelTools::bit_redirect( $gContent->getDisplayUrl() );
 	}
@@ -55,6 +75,9 @@ $gBitSmarty->assign( 'mapOverviewHeight', $currentOverviewHeight );
 
 $gContent->loadXrefInfo();
 $gBitSmarty->assign( 'gXrefInfo', $gContent->mXrefInfo );
+
+$mapFilePath = $gContent->getSourceFile( $gContent->mInfo['map_file'] ?? [] );
+$gBitSmarty->assign( 'mapFileContent', ( $mapFilePath && is_readable( $mapFilePath ) ) ? file_get_contents( $mapFilePath ) : '' );
 
 $gContent->invokeServices( 'content_edit_function' );
 

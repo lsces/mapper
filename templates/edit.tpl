@@ -7,7 +7,7 @@
 	</header>
 
 	<section class="body">
-		{form id="editMapForm" ipackage="mapper" ifile="edit.php"}
+		{form id="editMapForm" ipackage="mapper" ifile="edit.php" enctype="multipart/form-data"}
 			{formfeedback error=$errors}
 
 			<input type="hidden" name="content_id" value="{$gContent->mContentId|escape}"/>
@@ -16,6 +16,22 @@
 				{formlabel label="Title" for="map-title" mandatory="y"}
 				{forminput}
 					<input type="text" class="form-control" name="title" id="map-title" value="{$gContent->getTitle()|escape}" maxlength="160" size="50"/>
+				{/forminput}
+			</div>
+
+			<div class="form-group">
+				{formfeedback warning="{tr}Uploading a new .map file here replaces the current one and re-parses its EXTENT/SHAPEPATH/layers - any manually set per-layer queryable/visible flags will need re-setting afterward.{/tr}"}
+				{formlabel label="Replace Map File" for="map-file"}
+				{forminput}
+					<input type="file" class="form-control" name="map_file" id="map-file"/>
+					{formhelp note="Leave blank to keep the current file unchanged."}
+				{/forminput}
+			</div>
+
+			<div class="form-group">
+				{formlabel label="Current Map File" for="map-file-view"}
+				{forminput}
+					<textarea class="form-control" id="map-file-view" rows="15" readonly style="font-family:monospace; font-size:0.85em;">{$mapFileContent|escape}</textarea>
 				{/forminput}
 			</div>
 

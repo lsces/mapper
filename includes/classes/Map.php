@@ -300,6 +300,31 @@ class Map extends LibertyMime
 	}
 
 	/**
+	 * Re-parse whatever's currently on disk at this Map's own attachment path and re-sync the
+	 * xref rows from it - for when the file itself was edited directly on the server (SSH, not
+	 * through this edit page), which is routine for a real Map's mapfile since MapServer paths/
+	 * layers/styling are hand-tuned far more often than they're re-uploaded wholesale. Without
+	 * this, the database silently drifts from the file: layers added by hand never appear in the
+	 * xref-driven layer toggle list (see mapper/CLAUDE.md, found live 2026-08-09 building the
+	 * deleted-content mapset). Shares parseMapFile()/storeParsedMapFileDetails() with store()'s
+	 * own upload path, so it has the exact same "layers wholly replaced, queryable flags reset"
+	 * behaviour as a normal re-upload - not a new limitation, just reachable without a file input.
+	 */
+	function reloadFromDisk(): bool {
+		$sourceFile = $this->getSourceFile( $this->mInfo['map_file'] ?? [] );
+		if( !$sourceFile || !is_readable( $sourceFile ) ) {
+			$this->mErrors[] = KernelTools::tra( 'Map file not found on disk or not readable.' );
+			return false;
+		}
+		$parsed = $this->parseMapFile( $sourceFile );
+		$this->StartTrans();
+		$this->storeParsedMapFileDetails( $parsed, [ 'content_id' => $this->mContentId ] );
+		$this->CompleteTrans();
+		$this->load();
+		return true;
+	}
+
+	/**
 	 * Parse a MapServer .map file's own block structure. Every real block-opening keyword
 	 * (LAYER, METADATA, CLASS, STYLE, LABEL, PROJECTION, WEB, LEGEND, SCALEBAR, REFERENCE, ...)
 	 * appears bare, alone on its own line, in MapServer's mapfile grammar - directives always
