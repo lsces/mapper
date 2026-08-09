@@ -58,14 +58,21 @@ if( !in_array( $rawLayer, $mapsetInfo['layerList'] ?? [], true ) ) {
 // though: a cache HIT is a plain static file served straight by nginx (see tiles.conf), so it
 // never reaches this check - accepted tradeoff of file-based caching, same as how
 // storage/attachments' own access control lives at the nginx auth_request layer, not re-checked
-// by PHP per file read.
+// by PHP per file read. Cache is shared across every site (see MAPS_DIR below), so this is a
+// once-only cost per mapset/layer/tile - the first site to render it benefits every other site's
+// requests for the same tile too, not just its own.
 $allowed = $map ? $map->hasViewPermission() : $gBitUser->hasPermission( 'bit_p_view_mapper' );
 if( !$allowed ) {
 	http_response_code( 403 );
 	exit;
 }
 
-$cacheDir = STORAGE_PKG_PATH.'mapper_tiles/'.$rawMapset.'/'.$rawLayer.'/'.$z.'/'.$x;
+// Maps/ is a shared archive location (not per-site) - one cache per map, used by both this
+// on-demand cache and tile.php's renderd cache alike, both nested under {mapname}/tiles/ (see
+// that file's own doc comment for the full reasoning).
+const MAPS_DIR = '/srv/website/rdm/maps';
+
+$cacheDir = MAPS_DIR.'/'.$rawMapset.'/tiles/'.$rawLayer.'/'.$z.'/'.$x;
 $cacheFile = $cacheDir.'/'.$y.'.png';
 
 if( !is_file( $cacheFile ) ) {
