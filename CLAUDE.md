@@ -494,3 +494,32 @@ blind substitution specifically because `rdmcloud/storage/mapper/`'s dataset sym
 a real authenticated request (`users_cnxn` cookie-insert technique) against `over_gb` on srv9
 directly: `HTTP 200`, full classic frameset, no "could not be found" - confirms the fix for all 21,
 not just the one originally reported, since they all shared the identical root cause.
+
+## On-demand tile cache unified with the renderd cache, shared across sites — 2026-08-09
+Continuation of the `OS-Data` → `Maps` archive reorganization (infra-heavy, full story in
+`/etc/webstack/CLAUDE.md`) - the mapper-specific piece was moving `render_tile.php`'s on-demand
+cache out of `storage/mapper_tiles/<mapset>/<layer>/` (per-site) into the same shared
+`Maps/<mapname>/tiles/` location `tile.php`'s renderd cache now uses too. One cache per map,
+genuinely shared: `lsces` and `rdmcloud` rendering the same mapset/layer/tile now populate the
+same file, not two separate copies - a real gain given several mapsets are near-identical clones
+between the two sites.
+
+Cost of the move: dropped the nginx-level `try_files` cache-hit fast-path for this route (see
+`MANUAL.md`'s Tile serving & caching section for why - a real nginx footgun with `root /`
+overrides leaking `$document_root`, reverted as a precaution, never actually confirmed broken).
+Every on-demand tile request now pays the kernel-bootstrap cost even on a hit, unlike `tile.php`'s
+genuinely stateless reads. Not fixed today; flagged as worth revisiting if it ever matters enough.
+
+Also changed `render_tile.php`'s "couldn't produce a tile" response from 502 to 404 - 502 means
+"upstream is down", which was never accurate for this path (covers a genuine render failure and a
+legitimate no-data coordinate alike), and reads as a real outage to any log/monitoring tooling for
+what's normally just an edge-case tile with no content. Matches `tile.php`'s own convention for a
+missing renderd metatile.
+
+Real bug found chasing an apparent regression: a `chown -R firebird:firebird` swept across the
+*whole* `Maps/` tree during the srv10 disk-space migration (see webstack log), silently blocking
+every on-demand tile write with zero PHP-level error (a deliberate, silent `mkdir()`/
+`file_put_contents()` failure, not a crash) - looked exactly like a code regression from this
+session's own changes for a long stretch of debugging before the ownership mismatch surfaced.
+Worth remembering: PHP-FPM's own error log staying completely silent despite consistent 502s is
+itself a strong signal to check filesystem permissions before assuming a code-level crash.

@@ -226,8 +226,13 @@ one) rather than the generic `/index.php?content_id=` dispatcher.
 
 ## Tile serving & caching
 
-Two independent tile mechanisms, both ultimately reached via `/tiles/...` nginx locations, both
-serving a cache **hit** as a plain static file with no PHP/kernel bootstrap at all:
+Two independent tile mechanisms, both ultimately reached via `/tiles/...` nginx locations, and
+(since 2026-08-09) both storing their cache in the **same shared location** —
+`Maps/<mapname>/tiles/` on the archive disk (`/media3/Maps` on srv9, `/home/media1/Maps` on
+desktop, `/srv/firebird/Maps` on srv10 — see `/etc/webstack/CLAUDE.md` for why srv10's differs and
+the full story of this migration), reached via the uniform junction `/srv/website/rdm/maps`. One
+cache per map, genuinely shared across every site — `lsces` and `rdmcloud` rendering the same
+mapset/layer/tile now populate the same cache entry, not two separate copies.
 
 ### `/tiles/mapsrv/<mapset>/<layer>/{z}/{x}/{y}.png` — on-demand cache for classic mapsets
 
@@ -236,15 +241,34 @@ registry entries alike, except gdalWms-backed ones — see below). `display_map2
 Leaflet `xyz`-type tile layer per registry `layerList` entry, pointed at this URL — the *same*
 client-side code path already used for renderd-backed mapsets, no separate WMS branch in the JS.
 
-On a cache miss, `render_tile.php` (mapper package, needs a full kernel bootstrap — this is the
-"per-site" half of the mechanism) computes the tile's bbox using standard Web Mercator
-(EPSG:3857) tile-grid math, invokes `/usr/bin/mapserv` directly via `proc_open()` (as a plain CGI
-program, `REQUEST_METHOD=GET`/`QUERY_STRING` env vars — same technique as the documented
-`mode=browse` manual-testing recipe below) with an explicit WMS 1.1.1 `GetMap` request, and — only
-if the response's `Content-Type` genuinely starts `image/` (never cache an error page/XML
-exception as if it were a tile) — writes the raw PNG bytes to
-`storage/mapper_tiles/<mapset>/<layer>/<z>/<x>/<y>.png`. The nginx location tries that path first
-(`try_files`) before ever falling to the PHP script.
+Always routes through `render_tile.php` (mapper package, needs a full kernel bootstrap — this is
+the "per-site" half of the mechanism, since resolving a mapset/layer needs that site's own DB) via
+fastcgi, on both a hit and a miss — **no nginx-level `try_files` fast-path**, unlike the renderd
+cache below. An earlier attempt at one (checking the shared absolute path before falling back to
+PHP) hit a real nginx footgun (a `root /` override needed to resolve the absolute path leaked into
+`$document_root` for the PHP fallback too) and was reverted as a precaution; never actually
+confirmed broken, might be worth revisiting later. For now every on-demand tile request pays the
+kernel-bootstrap cost even on a cache hit, unlike `tile.php`'s genuinely stateless reads below.
+
+On a miss, `render_tile.php` computes the tile's bbox using standard Web Mercator (EPSG:3857)
+tile-grid math, invokes `/usr/bin/mapserv` directly via `proc_open()` (as a plain CGI program,
+`REQUEST_METHOD=GET`/`QUERY_STRING` env vars — same technique as the documented `mode=browse`
+manual-testing recipe below) with an explicit WMS 1.1.1 `GetMap` request, and — only if the
+response's `Content-Type` genuinely starts `image/` (never cache an error page/XML exception as if
+it were a tile) — writes the raw PNG bytes to `Maps/<mapset>/tiles/<layer>/<z>/<x>/<y>.png`. If
+that still doesn't produce a real file (genuine render failure, or a legitimate no-data
+coordinate — can't cleanly tell those apart from mapserv's output alone), returns **404, not
+502** — a 502 means "upstream is down", which this isn't; 404 matches `tile.php`'s own convention
+for "no tile here" and avoids reading as a real outage to any log/monitoring tooling.
+
+**Ownership gotcha, found live 2026-08-09**: this cache directory needs to be writable by whichever
+user PHP-FPM actually runs as (`nginx` on all three machines) — `Maps/` also holds read-only
+archive source data owned differently in places (`firebird:firebird` on srv10, matching that
+machine's `/srv/firebird` convenience-partition choice), and an `chown -R firebird:firebird` swept
+across the *whole* `Maps/` tree during that migration, silently blocking every on-demand tile
+write and surfacing as a very confusing wall of 502s with nothing useful in any log (PHP never
+throws here — it's a deliberate, silent `mkdir()`/`file_put_contents()` failure, not a crash).
+Worth checking ownership first if on-demand tiles ever mysteriously stop caching again.
 
 **Known WMS gotcha**: MapServer 8.x rejects a `GetMap` request without an explicit `STYLES` param,
 even an empty one (`"Missing required parameter STYLES"`) — Leaflet's own WMS layer always sends
@@ -256,9 +280,9 @@ the default, it uses whatever `arg_separator.output` says in `php.ini` — which
 silently truncating every param after the first as far as `mapserv`'s own CGI query parser is
 concerned (it just sees one long garbled key after the first genuine `&`).
 
-The `storage/mapper_tiles/` cache directory itself is unbounded — no size cap or cleanup cron
-exists yet (a newer mechanism than `storage/maps`', which does have one — see below). Worth
-building if it grows enough to matter; not pre-built speculatively.
+The cache directory itself is unbounded — no size cap or cleanup cron exists yet (a newer
+mechanism than `storage/maps`', which does have one — see below). Worth building if it grows
+enough to matter; not pre-built speculatively.
 
 ### `/tiles/<style>/{z}/{x}/{y}.png` — shared renderd/OSM tile cache
 
@@ -266,12 +290,12 @@ For mapsets backed by a pre-generated `renderd`/`mod_tile`-style tile cache (`os
 `osm_tiles_iom`, etc) — detected in `display_map2.php` by the presence of a `*_gdalwms.xml`
 sidecar file (the same GDAL WMS/TMS connector the classic mapfile's own `DATA` directive already
 points at). Served by the shared, domain-independent `/etc/webstack/tiles/tile.php` (no kernel
-bootstrap — genuinely stateless, reads straight from renderd's own metatile files on disk).
-`display_map2.php` strips the sidecar's `<ServerUrl>` down to its path component
-(`parse_url(..., PHP_URL_PATH)`) so the browser fetches same-origin rather than a hardcoded
-absolute hostname that would always resolve to whichever server public DNS points at, regardless
-of which server actually served the page — the XML's own `<ServerUrl>` stays absolute, since
-GDAL's server-side WMS fetch (the classic `display_map.php` path) genuinely needs a real,
+bootstrap — genuinely stateless, reads straight from renderd's own metatile files under
+`Maps/<style>/tiles/` on disk). `display_map2.php` strips the sidecar's `<ServerUrl>` down to its
+path component (`parse_url(..., PHP_URL_PATH)`) so the browser fetches same-origin rather than a
+hardcoded absolute hostname that would always resolve to whichever server public DNS points at,
+regardless of which server actually served the page — the XML's own `<ServerUrl>` stays absolute,
+since GDAL's server-side WMS fetch (the classic `display_map.php` path) genuinely needs a real,
 curl-able URL.
 
 nginx include order matters for this one: the `/tiles/...` regex location must be defined
@@ -282,14 +306,16 @@ ever runs.
 ## Storage layout
 
 - **`storage/mapper/<dataset>/`** — source raster/vector data (`SHAPEPATH`). Server-side only,
-  nginx `deny all`s it (mapserv reads it directly off disk, never over HTTP). Symlinked to a
-  shared big-disk archive per machine (`/media3/OS-Data/<name>` on srv9,
-  `/home/media1/OS-Data/<name>` on desktop) rather than duplicated per site.
+  nginx `deny all`s it (mapserv reads it directly off disk, never over HTTP). Symlinked to the
+  shared `Maps/<name>/` archive per machine (`/media3/Maps/<name>` on srv9, `/home/media1/Maps/<name>`
+  on desktop, `/srv/firebird/Maps/<name>` on srv10) rather than duplicated per site — renamed from
+  `OS-Data` 2026-08-09, see `/etc/webstack/CLAUDE.md` for the full migration.
 - **`storage/maps/`** — MapServer's own generated CGI output (`IMAGEPATH`/`IMAGEURL`) for the
   classic frameset path. *Is* served by nginx. Each render is a uniquely-named, never-revisited
   file — `/etc/webstack/cron.daily/mapper-maps-cleanup` deletes anything older than 2 days.
-- **`storage/mapper_tiles/<mapset>/<layer>/`** — the on-demand tile cache described above. No
-  cleanup mechanism yet. Isolated per-site (`rdmcloud` has its own, separate from `lsces`'s).
+- **`Maps/<mapname>/tiles/`** — the on-demand cache described above, now genuinely shared across
+  every site (was `storage/mapper_tiles/<mapset>/<layer>/`, per-site, until 2026-08-09). No
+  cleanup mechanism yet.
 - **`storage/attachments/`** — standard Liberty attachment storage; a real `Map`'s uploaded
   `.map` file lives here (`<bucket>/<content_id>/<filename>.map`), gated by the generic
   `storage/attachments/` `auth_request` nginx location.
