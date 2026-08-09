@@ -309,7 +309,10 @@ ever runs.
   nginx `deny all`s it (mapserv reads it directly off disk, never over HTTP). Symlinked to the
   shared `Maps/<name>/` archive per machine (`/media3/Maps/<name>` on srv9, `/home/media1/Maps/<name>`
   on desktop, `/srv/firebird/Maps/<name>` on srv10) rather than duplicated per site — renamed from
-  `OS-Data` 2026-08-09, see `/etc/webstack/CLAUDE.md` for the full migration.
+  `OS-Data` 2026-08-09, see `/etc/webstack/CLAUDE.md` for the full migration. Each map's own
+  `Maps/<name>/source/` holds the original downloaded archive (zip/tar) it was built from, where
+  one exists — not every map has one (a few are composited from multiple individually-acquired
+  files, or are virtual combinations of other maps' own data).
 - **`storage/maps/`** — MapServer's own generated CGI output (`IMAGEPATH`/`IMAGEURL`) for the
   classic frameset path. *Is* served by nginx. Each render is a uniquely-named, never-revisited
   file — `/etc/webstack/cron.daily/mapper-maps-cleanup` deletes anything older than 2 days.

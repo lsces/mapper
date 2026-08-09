@@ -523,3 +523,34 @@ every on-demand tile write with zero PHP-level error (a deliberate, silent `mkdi
 session's own changes for a long stretch of debugging before the ownership mismatch surfaced.
 Worth remembering: PHP-FPM's own error log staying completely silent despite consistent 502s is
 itself a strong signal to check filesystem permissions before assuming a code-level crash.
+
+## Each map given its own `source/` subfolder — 2026-08-09
+Completed the `Maps/` reorganization: every map's own downloaded archive now lives inside that
+map's folder (`Maps/<mapname>/source/<original>.zip`) instead of two flat buckets
+(`Maps/source/`, a separate `OSM-Tiles-builds/`) — same "each map is genuinely self-contained"
+principle as the tiles-under-the-map-folder move above, just for the original source material too.
+
+srv9 (full archive, 20 zips moved) needed one real disambiguation: `osmcarto-build-2026-08-05.zip`
+had no region in its filename, and could plausibly have belonged to either `osmcarto-gb` or
+`osmcarto-iom` — its own `README.txt` settled it (explicitly "IOM data, not yet GB-wide" for this
+build), filed under `osmcarto-iom/source/`. The three zips with no working mapset behind them yet
+(`gaz50k_gb_2016`, `gazlco_gb_2016`, `pancon_gb_2016` — raw data, never turned into a `.map`) still
+got their own `source/` folders rather than being left in a bucket — they already had `Maps/`
+folders of their own (raw-data placeholders), so the same convention applies even without a
+mapset attached yet.
+
+srv10 got the same move but scoped to its actual live subset only — only 5 of its 9 active maps
+had a source zip to bring over at all (`minisc_gb_2026`, `osmcarto-iom`, `os-style`, `over_gb_2014`,
+`over_gb_2026`, copied from srv9 and verified byte-identical by size); the other 4
+(`iom_years`, `meridian_2014`, `osmcarto-gb`, `over_gb`) have no source archive on srv9 either —
+`iom_years` is composited from individually-acquired historic TIFFs with no single zip, `over_gb`
+is a virtual combined mapset, `osmcarto-gb` has no build archive yet, and `meridian_2014`'s
+original source was apparently never archived (only 2016's was, hence `meridian_gb_2016` has a
+zip but `meridian_gb_2014` doesn't).
+
+Also renamed srv10's `Maps/meridian_2014` → `meridian_gb_2014` to match srv9's naming (the same
+archive-folder convention established during the earlier meridian merge, see the tile-cache
+unification entry above) — repointed the `storage/mapper/meridian_2014` symlink under `lsces` at
+the renamed folder, re-chowned to `nginx:nginx`, verified with an authenticated
+(`users_cnxn` cookie-insert) live render: `HTTP 200`. `rdmcloud` has no `storage/mapper` symlinks
+populated on srv10 at all (passive DR standby, not actively serving), so nothing to fix there.
