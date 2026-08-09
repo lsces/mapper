@@ -524,33 +524,30 @@ session's own changes for a long stretch of debugging before the ownership misma
 Worth remembering: PHP-FPM's own error log staying completely silent despite consistent 502s is
 itself a strong signal to check filesystem permissions before assuming a code-level crash.
 
-## Each map given its own `source/` subfolder — 2026-08-09
-Completed the `Maps/` reorganization: every map's own downloaded archive now lives inside that
-map's folder (`Maps/<mapname>/source/<original>.zip`) instead of two flat buckets
-(`Maps/source/`, a separate `OSM-Tiles-builds/`) — same "each map is genuinely self-contained"
-principle as the tiles-under-the-map-folder move above, just for the original source material too.
+## `Maps/` given per-map `source/` + `.map` copies, srv9 and srv10 — 2026-08-09
+Finished the self-contained-per-map principle: each map's original download archive moved from
+the two flat buckets (`Maps/source/`, `OSM-Tiles-builds/`) into its own `Maps/<name>/source/`,
+and a copy of its `.map` file (from each server's own `/etc/webstack/mapserver/`) placed in its
+folder too — presence of a `.map` now flags a working mapset, see `MANUAL.md`'s storage layout.
+srv9 got the full set; srv10 scoped to its live subset only, copying source zips over from srv9
+where one existed. One disambiguation needed: `osmcarto-build-2026-08-05.zip` had no region in
+its name, resolved via its own `README.txt` ("IOM data, not yet GB-wide") to `osmcarto-iom/`.
 
-srv9 (full archive, 20 zips moved) needed one real disambiguation: `osmcarto-build-2026-08-05.zip`
-had no region in its filename, and could plausibly have belonged to either `osmcarto-gb` or
-`osmcarto-iom` — its own `README.txt` settled it (explicitly "IOM data, not yet GB-wide" for this
-build), filed under `osmcarto-iom/source/`. The three zips with no working mapset behind them yet
-(`gaz50k_gb_2016`, `gazlco_gb_2016`, `pancon_gb_2016` — raw data, never turned into a `.map`) still
-got their own `source/` folders rather than being left in a bucket — they already had `Maps/`
-folders of their own (raw-data placeholders), so the same convention applies even without a
-mapset attached yet.
+Also renamed srv10's `Maps/meridian_2014` → `meridian_gb_2014` to match srv9. Desktop's own
+`Maps/` archive wasn't touched by any of this pass — still has pre-reorg names, flagged not fixed.
 
-srv10 got the same move but scoped to its actual live subset only — only 5 of its 9 active maps
-had a source zip to bring over at all (`minisc_gb_2026`, `osmcarto-iom`, `os-style`, `over_gb_2014`,
-`over_gb_2026`, copied from srv9 and verified byte-identical by size); the other 4
-(`iom_years`, `meridian_2014`, `osmcarto-gb`, `over_gb`) have no source archive on srv9 either —
-`iom_years` is composited from individually-acquired historic TIFFs with no single zip, `over_gb`
-is a virtual combined mapset, `osmcarto-gb` has no build archive yet, and `meridian_2014`'s
-original source was apparently never archived (only 2016's was, hence `meridian_gb_2016` has a
-zip but `meridian_gb_2014` doesn't).
+**Real bug found along the way**: verifying the meridian rename via its URL (`mapset=meridian_2014`)
+created a *second*, stray `Maps/meridian_2014/tiles/` cache folder on srv10 — `render_tile.php`
+keys its cache path off the resolved mapset key, and srv10 has no real `Map` object for meridian
+(still legacy-registry-resolved), so the registry key and the archive folder name are independent
+naming spaces with nothing keeping them in sync. User deleted the stray folder rather than rename
+the registry key — now documented as a known limitation in `MANUAL.md`, not fixed.
 
-Also renamed srv10's `Maps/meridian_2014` → `meridian_gb_2014` to match srv9's naming (the same
-archive-folder convention established during the earlier meridian merge, see the tile-cache
-unification entry above) — repointed the `storage/mapper/meridian_2014` symlink under `lsces` at
-the renamed folder, re-chowned to `nginx:nginx`, verified with an authenticated
-(`users_cnxn` cookie-insert) live render: `HTTP 200`. `rdmcloud` has no `storage/mapper` symlinks
-populated on srv10 at all (passive DR standby, not actively serving), so nothing to fix there.
+`over_gb.map`/`omlras_gb.map` got copied into more than one folder each, since both layer several
+editions as parallel-viewable exclusive layers, same pattern as `iom_years`' year sheets — each
+edition is a real map in its own right, the combined mapfile is just one way to view them
+together. **Direction flagged for later, not actioned**: `iom_years`' individual year sheets
+(1880/1906/1940/1947/25000a) arguably deserve the same treatment — their own `Maps/` entries,
+with `iom_years` itself becoming the "view several in parallel" convenience layer rather than the
+only entry point. Same idea applies to future additional editions of `over_gb`/`omlras_gb`. Not
+started; current structure "is looking very good" per direct user feedback, revisit later.

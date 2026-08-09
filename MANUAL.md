@@ -310,9 +310,13 @@ ever runs.
   shared `Maps/<name>/` archive per machine (`/media3/Maps/<name>` on srv9, `/home/media1/Maps/<name>`
   on desktop, `/srv/firebird/Maps/<name>` on srv10) rather than duplicated per site — renamed from
   `OS-Data` 2026-08-09, see `/etc/webstack/CLAUDE.md` for the full migration. Each map's own
-  `Maps/<name>/source/` holds the original downloaded archive (zip/tar) it was built from, where
-  one exists — not every map has one (a few are composited from multiple individually-acquired
-  files, or are virtual combinations of other maps' own data).
+  `Maps/<name>/source/` holds the original downloaded archive it was built from, where one exists.
+  A copy of the `.map` file itself also lives in each `Maps/<name>/` folder (source: each server's
+  own local `/etc/webstack/mapserver/`, not git-tracked) — its presence flags a working mapset,
+  its absence means raw/not-yet-built data only. A mapfile that layers several editions as
+  parallel-viewable exclusive layers (`over_gb`, `omlras_gb` — same pattern as `iom_years`' year
+  sheets) carries a copy in each edition's own folder, since each edition is independently a real
+  map in its own right and the combined mapfile is just one way of viewing them together.
 - **`storage/maps/`** — MapServer's own generated CGI output (`IMAGEPATH`/`IMAGEURL`) for the
   classic frameset path. *Is* served by nginx. Each render is a uniquely-named, never-revisited
   file — `/etc/webstack/cron.daily/mapper-maps-cleanup` deletes anything older than 2 days.
@@ -413,3 +417,9 @@ Liberty attachment storage, not the `mapper/` package tree) can be handed straig
   up first.
 - `overviewHeight` currently only has a numeric-pixel form; no per-mapset aspect-ratio or
   auto-fit alternative.
+- A legacy registry mapset's `mapper_mapsets.php` key and its `Maps/<name>/` archive folder name
+  are independent naming spaces with nothing keeping them in sync — the on-demand tile cache is
+  keyed off the resolved mapset key, not the archive folder name, so a mismatch between the two
+  silently creates a second, orphaned cache folder rather than erroring. Only affects mapsets
+  still reached via the legacy registry; a real `Map`'s slug is derived from its title, so title
+  and archive folder naturally stay in step (see Naming convention above).
