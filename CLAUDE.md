@@ -596,3 +596,109 @@ equivalent yet - not actioned.
 **Verified clean across all three machines afterward**: desktop/srv9/srv10 all have the identical
 trimmed `lsces` registry, `rdmcloud` has no `mapper_mapsets.php` anywhere, and none of the three
 has a dangling `/srv/website/rdm/tiles` symlink left.
+
+## Info/About tool rename + broken query popup + deleted-content map templates — 2026-08-09
+Renamed the "identify" tool to "Info" throughout (`param1.js`, `toolbar.js`, `query.js`,
+`common.js`, `tool.html`, `help.html`, `land_header.html`, `noFeature.html`) — icon files were
+already named `info_high.gif`/`info_low.gif`, only the JS/HTML plumbing still said "identify".
+Found along the way that the "Impressum" popup was a real, wired mechanism — just unreachable
+dead code (`impress.html` never existed) — renamed to "About" (`toggleabout`/`AboutWindow`/
+`AboutWinColor`/`aboutURL`, `impress.html` → `about.html`) specifically to free up the "Info"
+name cleanly, since `InfoWinColor` etc. would otherwise be claimed by both mechanisms. Two real
+copy-paste bugs found and fixed in passing: `identifyTitle = "Help Window"` (leftover from
+`about.html`'s own copy-paste origin, wrong window title) and a stray German comment fragment in
+`param1.js`.
+
+Fixed "Submit Query" opening a dead/empty popup: `query.js`'s `showQuery()` branched on
+`openNewWin`, a variable that was never actually defined anywhere, so it always fell into the
+`else` branch targeting a `QueryFrame` that has never existed in the real frameset (only
+`ScriptFrame` and `MapFrame` exist at the top level, confirmed via `center_view_map.tpl`'s actual
+`<iframe>` declarations).
+
+Built proper per-feature query-result templates for the deleted-content mapset's 3 layers
+(`theme/deleted_content_header.html`/`deleted_content_row.html`, paired with the existing
+`land_footer.html`) — the generic `land_header.html` is a single "NAME" column table, too thin
+for the richer per-feature data (name, last-seen/deleted dates, full tag JSON) this mapset
+carries. Set `queryable=true` on all 3 layers so Info actually returns something. Also fixed a
+real MapServer syntax bug found wiring this up: `COLOR` doesn't accept a 4th alpha value
+(`COLOR 255 200 0 100` → `loadStyle(): Unknown identifier` parse error) — needs a separate
+`OPACITY` directive instead. Added `QUERYMAP`/`TOLERANCE` (6px point, 4px line — polygon needs
+none, exact-inside hit-testing is naturally forgiving) to make click-query actually usable.
+
+## Reload-from-disk + replace-file upload wired into edit.php — 2026-08-09
+Two real gaps in the edit UI, closed together since both touch the same upload/store path:
+
+**Replace-file upload** (matching fisheye's `edit_image.php` pattern — same file input reused
+for both first upload and later replacement) hit a genuine, previously-unexercised bug in the
+shared `LibertyMime`/`mime.flatdefault.php` layer: `mime_default_verify()` decides "update
+existing attachment" vs. "create brand new attachment" purely by
+`isset($upload['attachment_id'])` — a documented open `@todo` in `LibertyMime.php` ("place the
+attachment_id with the upload hash in $_FILES"). `edit.php` never set it, so a replacement
+upload fell through to the brand-new-attachment path and tried to `GenID()` a fresh
+`liberty_files` row that collided with an unrelated existing one (hit live, content_id 7406).
+Fixed by explicitly threading `$fileUpload['attachment_id'] = $gContent->mContentId` through —
+always correct for a `Map`, since its one attachment is created with `attachment_id ==
+content_id` by convention (no 25-year-old sequence-number mismatch here, unlike much older
+content).
+
+**`Map::reloadFromDisk()`** (new public method) re-parses whatever's already on disk at the
+existing attachment path and re-syncs all xref data via the same private
+`storeParsedMapFileDetails()` the normal upload path uses — for a mapfile hand-edited directly on
+the server (SSH) rather than through the edit form, closing exactly the "file correct, database
+stale" gap that motivated the srv9 PROJECTION/SHPPATH audit below. Shares that helper's existing
+behaviour (layers wholly replaced, `queryable` reset to `false` on every re-parse) — a pre-
+existing limitation of the upload flow generally, not something new here. Wired into `edit.php`
+as a `reload=1` request branch and into `edit.tpl` as a floaticon link (`view-refresh` icon) —
+**not** a form submit button, corrected after an initial attempt; matches the existing floaticon
+convention used for Edit/Delete elsewhere rather than adding a new button row. `edit.tpl` also
+gained a read-only `<textarea>` showing the current `.map` file's raw content, and `list_maps.tpl`
+gained the missing "Upload Map" floaticon (`go-up` icon) — there was previously no UI path from
+the listing to `upload_map.php` at all.
+
+## srv9 Map fleet audit: PROJECTION gap, SHPPATH staleness, package .map retirement — 2026-08-09
+Installed the deleted-content map (content_id 7414) and the confirmed-good `osmcarto_iom` render
+(content_id 7413, a different rendering of the same base OSM data — both kept, not one replacing
+the other) as real `Map` objects on srv9, prompting a fuller audit of srv9's whole 23-object real-
+Map fleet across three independent axes:
+
+- **Package `.map` staleness**: 4 of the shared `/etc/webstack/mapserver/*.map` copies (kept as
+  reference material, not load-bearing for any real `Map`) had drifted from their already-fixed
+  live attachments — fixed to match (`iom_years.map`'s comment genericized, not site-hardcoded;
+  `osm_gb_2012.map`/`osm_iom_2012.map`'s `CONNECTION` path repointed `lsces`→`rdmcloud`, per the
+  new baseline decision below; `over_gb.map`'s folder-name casing).
+- **`PROJECTION` xref gap**: 19 of 23 real Maps had no `PROJECTION` xref row at all (added
+  2026-08-08 as part of that session's xref schema tidy, but never backfilled for existing
+  objects) — populated via direct SQL (`epsg:27700` for the OS-derived sets, `epsg:3857` for the
+  two web-mercator OSM tile mapsets).
+- **`SHPPATH` staleness**: 17 of 23 still had `SHPPATH` xref data hardcoded to
+  `/srv/website/lsces/...` despite their underlying `.map` files having been correctly fixed back
+  on 2026-08-08 — the file was right, the database row wasn't. Fixed via a single
+  `UPDATE ... SET data = REPLACE(...)` statement. This "file correct, database stale" pattern
+  recurring at this scale (17 of 23 objects) is exactly what motivated building
+  `reloadFromDisk()` above rather than continuing to bulk-fix by hand each time it's noticed.
+
+**`rdmcloud` established as the new baseline** for shared package template paths going forward
+(not `lsces`) — `lsces` is deliberately staying minimal (see "legacy registry trimmed" above),
+`rdmcloud` has the full, growing map set and is where new work actually happens.
+
+**`/etc/webstack/mapserver/*.map` retired — 21 files removed outright.** These were understood
+this session to be legacy infrastructure from before real `Map` content objects existed — now
+that every mapset except `lsces`'s single `'iom'` registry entry is a real `Map` object (whose
+master copy is its live uploaded attachment, with a `Maps/<name>/<name>.map` reference copy),
+the package copies were pure unmaintained duplication, actively a source of the staleness bugs
+above. Kept only `iom_years.map` (still backing `lsces`'s one legacy entry), `mapserver.conf`,
+`data/` (gdalwms.xml connectors, still genuinely referenced by real Maps' `SHAPEPATH`), and the
+two reference PNGs. Removing the files left `mapper/map/` symlinks dangling on all three
+machines for both `lsces` and `rdmcloud` — cleaned up throughout (a first pass missed 4 files —
+`osm_gb.map`/`osm_gb_2012.map`/`osm_iom.map`/`osm_iom_2012.map` — on srv9/srv10 specifically,
+caught and fixed in a follow-up pass; desktop never had those 4 symlinks in the first place,
+consistent with those mapsets having only ever been deployed to srv9).
+
+## "Reload From File" shipped — 2026-08-09
+Deployed the floaticon feature above: `edit.php`/`edit.tpl` copied into the package repo,
+committed, pushed, pulled onto srv9 and srv10 via `ssh root@srv9`/`ssh root@srv10` (running
+`server-pull-all.sh` must happen *on* the target server, not from desktop — see
+`/etc/webstack/CLAUDE.md` for the deploy-workflow note this prompted). Pulling onto srv9 also
+surfaced it was still 4 commits behind on the *webstack* repo from earlier the same session (the
+.map retirement above, among others) — see `/etc/webstack/CLAUDE.md`'s matching entry for that
+half of the story.
