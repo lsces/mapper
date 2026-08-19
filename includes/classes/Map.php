@@ -601,20 +601,38 @@ class Map extends LibertyMime
 			},
 			$fixed ?? $content
 		);
-		// SHAPEPATH/IMAGEPATH reference the site's own storage/ tree (the Maps archive symlink
-		// scheme under storage/mapper/, or generated overview output under storage/maps/), not
-		// the mapper package itself - same cross-site-copy problem as the directives above (a
-		// private per-site .map file, like iom_years' lsces-authored original, bakes in whichever
-		// domain it was written for) but anchored at STORAGE_PKG_PATH instead of MAPPER_PKG_PATH.
-		// Confirmed live: iom_years.map's SHAPEPATH/IMAGEPATH both still said /srv/website/lsces/
-		// storage/... after being registered on rdmcloud, breaking the overview image (IMAGEPATH
-		// is a write target - MapServer falls back to its raw default "Submit Query" form when it
-		// can't write there) even though every mapper/-relative directive above had already
-		// self-healed correctly.
+		// SHAPEPATH references the site's own storage/mapper/ tree (the Maps archive symlink
+		// scheme), not the mapper package itself - same cross-site-copy problem as the directives
+		// above (a private per-site .map file, like iom_years' lsces-authored original, bakes in
+		// whichever domain it was written for) but anchored at STORAGE_PKG_PATH instead of
+		// MAPPER_PKG_PATH. Confirmed live: iom_years.map's SHAPEPATH still said /srv/website/
+		// lsces/storage/... after being registered on rdmcloud, even though every mapper/-relative
+		// directive above had already self-healed correctly. Absolute-cross-site form only -
+		// SHAPEPATH's correct value genuinely varies per mapset, unlike IMAGEPATH below, so a
+		// relative value here (test_rlp.map's own SHAPEPATH is ".", meaning "next to the mapfile
+		// itself") is left alone rather than guessed at.
 		$fixed = preg_replace_callback(
-			'/^(\s*(?:SHAPEPATH|IMAGEPATH)\s+")\/srv\/website\/[^\/"]+\/storage\/([^"]+)(")/mi',
+			'/^(\s*SHAPEPATH\s+")\/srv\/website\/[^\/"]+\/storage\/([^"]+)(")/mi',
 			function( $m ) {
 				return $m[1].STORAGE_PKG_PATH.$m[2].$m[3];
+			},
+			$fixed ?? $content
+		);
+		// IMAGEPATH (where MapServer writes generated overview/legend/scalebar images) only ever
+		// has one correct value site-wide, unlike SHAPEPATH - so rewrite it outright whenever it
+		// isn't already exactly that, absolute or relative alike. Confirmed live: test_rlp.map's
+		// own IMAGEPATH is a *relative* "../../storage/maps/" - one directory too shallow for its
+		// actual attachment-storage depth (storage/attachments/<id%1000>/<id>/), producing a
+		// doubled storage/attachments/storage/maps/ path and the same write failure the absolute
+		// cross-site form already caused for iom_years. Relative paths depend on exactly how deep
+		// the attachment scheme nests a given file, which varies by mime plugin, so there's no
+		// single relative form that's ever reliably correct - always normalising to the absolute
+		// canonical value sidesteps needing to get that right.
+		$correctImagePath = STORAGE_PKG_PATH.'maps/';
+		$fixed = preg_replace_callback(
+			'/^(\s*IMAGEPATH\s+")([^"]+)(")/mi',
+			function( $m ) use ( $correctImagePath ) {
+				return $m[2] === $correctImagePath ? $m[0] : $m[1].$correctImagePath.$m[3];
 			},
 			$fixed ?? $content
 		);
