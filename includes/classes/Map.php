@@ -601,6 +601,23 @@ class Map extends LibertyMime
 			},
 			$fixed ?? $content
 		);
+		// SHAPEPATH/IMAGEPATH reference the site's own storage/ tree (the Maps archive symlink
+		// scheme under storage/mapper/, or generated overview output under storage/maps/), not
+		// the mapper package itself - same cross-site-copy problem as the directives above (a
+		// private per-site .map file, like iom_years' lsces-authored original, bakes in whichever
+		// domain it was written for) but anchored at STORAGE_PKG_PATH instead of MAPPER_PKG_PATH.
+		// Confirmed live: iom_years.map's SHAPEPATH/IMAGEPATH both still said /srv/website/lsces/
+		// storage/... after being registered on rdmcloud, breaking the overview image (IMAGEPATH
+		// is a write target - MapServer falls back to its raw default "Submit Query" form when it
+		// can't write there) even though every mapper/-relative directive above had already
+		// self-healed correctly.
+		$fixed = preg_replace_callback(
+			'/^(\s*(?:SHAPEPATH|IMAGEPATH)\s+")\/srv\/website\/[^\/"]+\/storage\/([^"]+)(")/mi',
+			function( $m ) {
+				return $m[1].STORAGE_PKG_PATH.$m[2].$m[3];
+			},
+			$fixed ?? $content
+		);
 		if( $fixed !== null && $fixed !== $content ) {
 			file_put_contents( $pFilePath, $fixed );
 		}
