@@ -46,4 +46,46 @@ $xrefItems[] = "INSERT INTO `{$X}liberty_xref_item` (`item`,`content_type_guid`,
 
 $gBitInstaller->registerSchemaDefault( MAPPER_PKG_NAME, array_merge( $xrefTypes, $xrefItems ) );
 
+// ### Default module layout - lifted from lsces's live themes_layouts rows (the real, working
+// arrangement: tools/legend/navi on the left, overview/links on the right), against the 'mapper'
+// layout profile display_map.php/display_map2.php actually request - not the site-wide default.
+$moduleHash = [
+	[
+		'title'       => null,
+		'pos'         => 1,
+		'layout_area' => 'l',
+		'layout'      => 'mapper',
+		'module_rsrc' => 'bitpackage:mapper/mod_tools.tpl',
+	],
+	[
+		'title'       => null,
+		'pos'         => 2,
+		'layout_area' => 'l',
+		'layout'      => 'mapper',
+		'module_rsrc' => 'bitpackage:mapper/mod_legend.tpl',
+	],
+	[
+		'title'       => null,
+		'pos'         => 3,
+		'layout_area' => 'l',
+		'layout'      => 'mapper',
+		'module_rsrc' => 'bitpackage:mapper/mod_navi.tpl',
+	],
+	[
+		'title'       => null,
+		'pos'         => 1,
+		'layout_area' => 'r',
+		'layout'      => 'mapper',
+		'module_rsrc' => 'bitpackage:mapper/mod_overview.tpl',
+	],
+	[
+		'title'       => null,
+		'pos'         => 2,
+		'layout_area' => 'r',
+		'layout'      => 'mapper',
+		'module_rsrc' => 'bitpackage:mapper/mod_links.tpl',
+	],
+];
+$gBitInstaller->registerModules( $moduleHash );
+
 ?>
