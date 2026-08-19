@@ -702,3 +702,52 @@ committed, pushed, pulled onto srv9 and srv10 via `ssh root@srv9`/`ssh root@srv1
 surfaced it was still 4 commits behind on the *webstack* repo from earlier the same session (the
 .map retirement above, among others) — see `/etc/webstack/CLAUDE.md`'s matching entry for that
 half of the story.
+
+## `test_rlp.map` demo pump + `fixRelativePaths()` gaps found — 2026-08-19
+First real live pump of the package's own bundled `map/test_rlp.map` into a genuine `Map` content
+object (`pump_mapper_inc.php`, run via install's Content/datapump step) — content_id 16 on
+rdmcloud. Surfaced several gaps in `fixRelativePaths()` (Map.php) that had never been exercised
+because every previously-fixed mapset had already been through a real upload, not a from-scratch
+pump of a mostly-untouched package file:
+- **Unquoted `DATA`**: the regex only matched quoted directives (`SYMBOLSET`/`TEMPLATE`/etc) -
+  `test_rlp.map`'s own `DATA ../data/IOM1880bw.tif` has no quotes at all. Separate pass added.
+- **Relative/cross-site `IMAGEPATH`**: two distinct failure modes seen live. `iom_years.map` (a
+  private lsces-authored file registered on rdmcloud) still had an *absolute* `/srv/website/lsces/
+  storage/...` IMAGEPATH baked in - fixed with a new SHAPEPATH/IMAGEPATH pass anchored at
+  `STORAGE_PKG_PATH` instead of `MAPPER_PKG_PATH`. `test_rlp.map`'s own IMAGEPATH was *relative*
+  (`../../storage/maps/`) and one directory too shallow for its actual attachment-storage depth,
+  producing a doubled `storage/attachments/storage/maps/` path MapServer couldn't write to.
+  IMAGEPATH only ever has one correct value site-wide (unlike SHAPEPATH, which genuinely varies
+  per mapset) - now always normalised to the absolute canonical value regardless of its current
+  form, rather than trying to get every possible attachment-depth's relative path right.
+- **Missing WMS metadata entirely**: `test_rlp.map`'s `WEB` block had never had `wms_enable_request`
+  set at all (only ever served via the classic MapServer CGI browse interface, `_map`, never
+  `_map2`'s WMS-based Leaflet viewer) - MapServer refused every WMS GetMap request outright
+  ("WMS request not enabled"), rendering as a blank tile with no server-side error surfaced to
+  the page. Added `METADATA { wms_title / wms_srs / wms_enable_request "*" }` to the `WEB` block,
+  both the package source and all three machines' live attachment copies.
+
+**`mapsets_inc.php`'s `'test'` stopgap retired.** Now that the public demo has a working real Map
+object, the old registry entry (pointing at the raw, never-self-healed package source file) was
+removed rather than chased further. The real Map's title was renamed `test_rlp` → `test` (matches
+the old registry key exactly) instead of updating every `'test'` reference across `display_map.php`
+et al to a new string - much smaller diff, and `mapsets_inc.php`'s `'default'` is now that Map's
+own slug, tried via `Map::lookupBySlug()` before ever consulting the (now-empty) registry array.
+`mapper_resolve_mapset()` had to be restructured so an *empty* key (bare-URL/anonymous-fallback
+case) also gets tried as a real-Map slug via the registry's own default - previously only an
+explicit non-empty key ever reached `Map::lookupBySlug()` at all, so the bare-URL case could never
+resolve to a real Map regardless of what `'default'` pointed at.
+
+**Permission-gating nuance, deliberately not changed**: `display_map.php`'s anonymous "public
+demo" fallback still uses the blanket `bit_p_v_map_mapper` permission check, not
+`Map::verifyViewPermission()`, even though `test` is a real Map now - content_id 16 has no
+explicit `liberty_content_permissions` row, so the protector-aware check would fall back to
+`bit_p_view_mapper` (registered-only), silently tightening what's meant to stay public/anonymous.
+
+Git working-tree oddity hit propagating this to srv9/srv10: `git pull`/`git merge --ff-only`/even
+`git reset --hard origin/master` all refused on `map/test_rlp.map` citing "local changes would be
+overwritten" / "Entry not uptodate", despite `git status`/`git diff` both reporting the file
+clean against HEAD. Root cause turned out to be a genuine stray uncommitted edit (an lsces-specific
+absolute IMAGEPATH, predating this session) that some git operations detected and others didn't -
+whatever the exact mechanism, `git checkout <ref> -- <file>` after a plain `rm` of the file worked
+cleanly when `reset --hard` itself would not. Worth remembering as a technique if this recurs.
