@@ -29,6 +29,11 @@ WEB
   IMAGEPATH "../../storage/maps/"
   IMAGEURL "/storage/maps/"
   EMPTY "../theme/noFeature.html"
+  METADATA
+    "wms_title" "Isle of Man 1880 Demo"
+    "wms_srs" "EPSG:27700 EPSG:3857"
+    "wms_enable_request" "*"
+  END
 END
 
 QUERYMAP
