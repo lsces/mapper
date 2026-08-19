@@ -30,6 +30,25 @@ namespace Bitweaver\Mapper;
 function mapper_resolve_mapset( ?int $pContentId, string $pResolvedMapsetKey ): ?array {
 	global $gBitDb, $gBitDbName;
 
+	// Registry loaded upfront (not just in the fallback branch below) so an empty key can
+	// resolve to the site's own default and get tried as a real Map slug first - the package
+	// default is itself a real Map's slug now ('test_rlp'), not a registry array key (the old
+	// 'test' stopgap entry has been retired - see mapsets_inc.php's own doc comment).
+	$mapsets = require( MAPPER_PKG_INCLUDE_PATH.'mapsets_inc.php' );
+	$siteMapsetsFile = '/etc/webstack/domains/'.$gBitDbName.'/mapper_mapsets.php';
+	if( file_exists( $siteMapsetsFile ) ) {
+		$siteMapsets = require( $siteMapsetsFile );
+		if( !empty( $siteMapsets['mapsets'] ) ) {
+			$mapsets['mapsets'] = array_merge( $mapsets['mapsets'], $siteMapsets['mapsets'] );
+		}
+		if( !empty( $siteMapsets['default'] ) ) {
+			$mapsets['default'] = $siteMapsets['default'];
+		}
+	}
+	if( $pResolvedMapsetKey === '' && !empty( $mapsets['default'] ) ) {
+		$pResolvedMapsetKey = $mapsets['default'];
+	}
+
 	if( !$pContentId && $pResolvedMapsetKey !== '' ) {
 		// Try a real Map object's slug before falling through to the old registry array - see
 		// Map::lookupBySlug()'s own doc comment for why this needs no explicit collision
@@ -135,28 +154,18 @@ function mapper_resolve_mapset( ?int $pContentId, string $pResolvedMapsetKey ): 
 		];
 	}
 
-	$mapsets = require( MAPPER_PKG_INCLUDE_PATH.'mapsets_inc.php' );
-	$siteMapsetsFile = '/etc/webstack/domains/'.$gBitDbName.'/mapper_mapsets.php';
-	if( file_exists( $siteMapsetsFile ) ) {
-		$siteMapsets = require( $siteMapsetsFile );
-		if( !empty( $siteMapsets['mapsets'] ) ) {
-			$mapsets['mapsets'] = array_merge( $mapsets['mapsets'], $siteMapsets['mapsets'] );
-		}
-		if( !empty( $siteMapsets['default'] ) ) {
-			$mapsets['default'] = $siteMapsets['default'];
-		}
-	}
-	$resolvedKey = $pResolvedMapsetKey !== '' ? $pResolvedMapsetKey : $mapsets['default'];
-	if( empty( $mapsets['mapsets'][$resolvedKey] ) ) {
+	// $mapsets already loaded upfront - a real Map's slug lookup was tried and failed (or
+	// $pResolvedMapsetKey/$mapsets['default'] was empty), so this is a genuine registry-only key.
+	if( empty( $pResolvedMapsetKey ) || empty( $mapsets['mapsets'][$pResolvedMapsetKey] ) ) {
 		return null;
 	}
-	$mapset = $mapsets['mapsets'][$resolvedKey];
+	$mapset = $mapsets['mapsets'][$pResolvedMapsetKey];
 
 	return [
 		'mapset'      => $mapset,
 		'mapCgiPath'  => MAPPER_PKG_PATH.'map/'.$mapset['file'],
-		'gdalWmsPath' => '/etc/webstack/mapserver/data/'.$resolvedKey.'_gdalwms.xml',
-		'resolvedKey' => $resolvedKey,
+		'gdalWmsPath' => '/etc/webstack/mapserver/data/'.$pResolvedMapsetKey.'_gdalwms.xml',
+		'resolvedKey' => $pResolvedMapsetKey,
 		'map'         => null,
 	];
 }

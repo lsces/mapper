@@ -47,14 +47,20 @@ if( $resolved === null ) {
 if( $map ) {
 	// Real Map object (explicit content_id, or a slug match) - protector-aware (per-item role
 	// gating actually enforced via Map::load(), see protector/CLAUDE.md), no registry-style
-	// anonymous soft-fallback (that's specific to the registry's shared 'test' demo below, not
-	// a per-object concept here).
+	// anonymous soft-fallback (that's specific to the registry's shared 'test' demo below,
+	// not a per-object concept here).
 	$map->verifyViewPermission();
 	$contentId = $map->mContentId;
 } else {
-	// 'test' is the public package demo mapset (bit_p_v_map_mapper, basic/anonymous) - everything
-	// else (iom, meridian, minisc, opmplc, vmdvec) is real OS-licensed data or private family
-	// genealogy data, gated behind bit_p_view_mapper (registered).
+	// 'test' is the public package demo mapset (bit_p_v_map_mapper, basic/anonymous) -
+	// everything else (iom, meridian, minisc, opmplc, vmdvec) is real OS-licensed data or private
+	// family genealogy data, gated behind bit_p_view_mapper (registered). test is a real Map
+	// object now (content_id 16, formerly titled 'test_rlp') but deliberately still resolved+
+	// permission-checked via this
+	// registry-style blanket path, not Map::verifyViewPermission() - it has no explicit
+	// liberty_content_permissions row, so the protector-aware check would fall back to
+	// bit_p_view_mapper (registered-only), silently tightening what's meant to stay a public,
+	// anonymous-visible demo.
 	$requiredPermission = $resolvedMapsetKey === 'test' ? 'bit_p_v_map_mapper' : 'bit_p_view_mapper';
 
 	// No mapset was explicitly requested (bare URL) and the resolved site default isn't visible
