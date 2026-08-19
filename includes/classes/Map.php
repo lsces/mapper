@@ -558,10 +558,15 @@ class Map extends LibertyMime
 	}
 
 	/** Rewrite every relative "../..." path this project's mapfiles reference (symbols, HTML
-	 * templates, theme fragments, reference images) to an absolute path anchored at
-	 * MAPPER_PKG_PATH - every one of these is one level up from wherever the mapfile itself
-	 * normally sits (mapper/map/), so stripping the leading ../ and prefixing MAPPER_PKG_PATH
-	 * reconstructs the correct real location regardless of where the file's own copy is stored.
+	 * templates, theme fragments, reference images, per-layer DATA sources) to an absolute path
+	 * anchored at MAPPER_PKG_PATH - every one of these is one level up from wherever the mapfile
+	 * itself normally sits (mapper/map/), so stripping the leading ../ and prefixing
+	 * MAPPER_PKG_PATH reconstructs the correct real location regardless of where the file's own
+	 * copy is stored. DATA added after test_rlp.map's own IOM1880 raster layer ("../data/
+	 * IOM1880bw.tif", a real ~4MB file living at mapper/data/) fatally broke MapServer rendering
+	 * once the .map file itself moved to a real Map's attachment storage path - the fix points
+	 * back at the package's own bundled data/ rather than duplicating the raster into every
+	 * attachment.
 	 * See storeParsedMapFileDetails()'s call site. */
 	/** Public (not private) and safe to call repeatedly, on every resolve - not just once at
 	 * upload time. Matches either a relative "../..." path OR an already-absolute
@@ -584,6 +589,17 @@ class Map extends LibertyMime
 				return $m[1].MAPPER_PKG_PATH.$m[2].$m[3];
 			},
 			$content
+		);
+		// DATA is commonly left unquoted in hand-written mapfiles when the path has no spaces
+		// (confirmed live: test_rlp.map's "DATA ../data/IOM1880bw.tif", no quotes at all) -
+		// separate pass, since the quoted directives above need the quote characters preserved
+		// either side of the rewritten path and DATA here has none to preserve.
+		$fixed = preg_replace_callback(
+			'/^(\s*DATA\s+)(?:\.\.\/|\/srv\/website\/[^\/\s]+\/mapper\/)([^\s"]+)\s*$/mi',
+			function( $m ) {
+				return $m[1].MAPPER_PKG_PATH.$m[2];
+			},
+			$fixed ?? $content
 		);
 		if( $fixed !== null && $fixed !== $content ) {
 			file_put_contents( $pFilePath, $fixed );
