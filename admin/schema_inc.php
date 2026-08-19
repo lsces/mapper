@@ -49,7 +49,16 @@ $gBitInstaller->registerSchemaDefault( MAPPER_PKG_NAME, array_merge( $xrefTypes,
 // ### Default module layout - lifted from lsces's live themes_layouts rows (the real, working
 // arrangement: tools/legend/navi on the left, overview/links on the right), against the 'mapper'
 // layout profile display_map.php/display_map2.php actually request - not the site-wide default.
+// Top/bottom bring in the same generic kernel chrome modules the default layout uses - kernel's
+// own schema_inc.php only registers those against the 'kernel' layout, not 'mapper'.
 $moduleHash = [
+	[
+		'title'       => null,
+		'pos'         => 2,
+		'layout_area' => 't',
+		'layout'      => 'mapper',
+		'module_rsrc' => 'bitpackage:kernel/mod_top_menu.tpl',
+	],
 	[
 		'title'       => null,
 		'pos'         => 1,
@@ -84,6 +93,13 @@ $moduleHash = [
 		'layout_area' => 'r',
 		'layout'      => 'mapper',
 		'module_rsrc' => 'bitpackage:mapper/mod_links.tpl',
+	],
+	[
+		'title'       => null,
+		'pos'         => 1,
+		'layout_area' => 'b',
+		'layout'      => 'mapper',
+		'module_rsrc' => 'bitpackage:kernel/mod_bottom_bar.tpl',
 	],
 ];
 $gBitInstaller->registerModules( $moduleHash );
