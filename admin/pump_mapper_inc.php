@@ -21,7 +21,12 @@ if( is_readable( $mapFilePath ) ) {
 		'size'     => filesize( $mapFilePath ),
 	];
 	$pParamHash = [
-		'title'           => '',
+		// test_rlp.map's own internal NAME directive is 'Demo' - Map::store() deliberately
+		// treats that as a meaningless placeholder (see its own comment) and falls back to the
+		// filename, giving 'test_rlp' rather than anything a visitor would recognise. This is a
+		// controlled pump, not a real upload, so just give it a real title directly instead of
+		// relying on that fallback chain at all.
+		'title'           => 'Isle of Man Demo Map',
 		'_files_override' => [ 'map_file' => $fileHash ],
 		'user_id'         => ROOT_USER_ID,
 	];
