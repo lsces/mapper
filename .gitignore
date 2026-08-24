@@ -7,3 +7,4 @@
 # added by accident (e.g. via `git add -A`).
 /data/*
 /dataIOM/
+CLAUDE.md
