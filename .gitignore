@@ -8,3 +8,9 @@
 /data/*
 /dataIOM/
 CLAUDE.md
+
+# Server-local MapServer mapfiles (e.g. iom_years.map) - not meant for this
+# repo, same reasoning as the bulk data above. test_rlp.map is the one
+# deliberate exception, already tracked - gitignore doesn't touch it.
+/map/*.map
+!/map/test_rlp.map
