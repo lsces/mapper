@@ -215,6 +215,12 @@ class Map extends LibertyMime
 			$this->mInfo['map_file'] = current( $this->mStorage );
 		}
 
+		// Populates $this->mXrefInfo (EXTENT/SHPPATH/EXCL/OVERVIEWHEIGHT/LAYER all live in
+		// normal, sort_order>0 display groups - unlike Contact's type-marker items, these
+		// belong in the normal loaded-object state) so xref reads/writes below can go
+		// through it instead of querying liberty_xref directly.
+		$this->loadXrefInfo();
+
 		return true;
 	}
 
@@ -288,7 +294,7 @@ class Map extends LibertyMime
 				} else {
 					// Blank/zero means "use the default" - clear any existing override rather
 					// than storing a meaningless 0.
-					$this->mDb->query( "DELETE FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = 'OVERVIEWHEIGHT'", [ $this->mContentId ] );
+					$this->removeXrefItem( 'OVERVIEWHEIGHT' );
 				}
 			}
 			$this->CompleteTrans();
@@ -478,15 +484,14 @@ class Map extends LibertyMime
 			// own comment, not assumed. Found live: batch-imported meridian_2014 defaulted to
 			// exclusive, collapsing all 12 independent thematic layers into a single-choice radio
 			// group in display_map2.php - only the last one added stayed visible.
-			$existing = $this->mDb->getOne( "SELECT COUNT(*) FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = 'EXCL'", [ $this->mContentId ] );
-			if( empty( $existing ) ) {
+			if( empty( $this->mXrefInfo?->findByItem( 'EXCL' ) ) ) {
 				$this->upsertSingleXref( 'general', 'EXCL', '0', true );
 			}
 		}
 
 		// Layers are wholly replaced on (re-)upload - a new mapfile's layer set may differ in
 		// membership/order entirely, unlike the single-value 'general' items which upsert in place.
-		$this->mDb->query( "DELETE FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = 'LAYER'", [ $this->mContentId ] );
+		$this->removeXrefItem( 'LAYER' );
 		foreach( $layers as $i => $layer ) {
 			if( empty( $layer['name'] ) ) {
 				continue;
@@ -652,7 +657,10 @@ class Map extends LibertyMime
 	 * PROJ.4 definition can easily exceed XKEY's 32 chars even when XKEY itself holds a clean
 	 * short form, or is left blank because there's no short form at all). */
 	private function upsertSingleXref( string $pGroup, string $pItem, string $pValue, bool $pUseXkey = false, ?string $pXkeyExt = null ): void {
-		$existingXrefId = $this->mDb->getOne( "SELECT `xref_id` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = ?", [ $this->mContentId, $pItem ] );
+		// EXTENT/SHPPATH/EXCL/OVERVIEWHEIGHT/PROJECTION all live in normal, sort_order>0
+		// display groups (unlike Contact's type-marker items), so they're genuinely in
+		// $this->mXrefInfo once loaded - no need to query liberty_xref directly here.
+		$existingXrefId = $this->mXrefInfo?->findByItem( $pItem )[0] ?? null;
 		$xrefHash = [
 			'content_id' => $this->mContentId,
 			'item'       => $pItem,
@@ -669,5 +677,24 @@ class Map extends LibertyMime
 			$xrefHash['xref_id'] = $existingXrefId;
 		}
 		$this->storeXref( $xrefHash );
+	}
+
+	/**
+	 * Remove every xref row this content item currently has for one item code,
+	 * through the xref class (stepXref with expunge=3) rather than a raw
+	 * DELETE - works whether the item is single-cardinality (OVERVIEWHEIGHT) or
+	 * multiple=1 (LAYER, several rows sharing the item code); a plain rebuild
+	 * (delete-all-then-recreate) is the correct, deliberate behaviour for LAYER
+	 * specifically (a re-upload's layer membership genuinely replaces the old
+	 * set wholesale, not an incremental diff like Contact's checkbox items) -
+	 * this only changes how the delete is done, not when or why.
+	 *
+	 * @param string $pItem
+	 */
+	private function removeXrefItem( string $pItem ): void {
+		foreach( $this->mXrefInfo?->findByItem( $pItem ) ?? [] as $xrefId ) {
+			$stepHash = [ 'xref_id' => $xrefId, 'expunge' => 3 ];
+			$this->stepXref( $stepHash );
+		}
 	}
 }
