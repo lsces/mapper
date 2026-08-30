@@ -39,12 +39,10 @@ $contentList = $gContent->getContentList( $pListHash );
 // running. Single batched lookup keyed on xkey (see Map::upsertSingleXref()'s own doc comment
 // on why PROJECTION lives there, not in the data blob).
 if( $contentList ) {
-	global $gBitDb;
 	// getContentList() returns a plain sequential array (0,1,2,...), not content_id-keyed like
 	// Map::getList() - content_id has to come from each row's own field, not the array key.
 	$contentIds = array_column( $contentList, 'content_id' );
-	$placeholders = implode( ',', array_fill( 0, count( $contentIds ), '?' ) );
-	$projections = $gBitDb->getAssoc( "SELECT `content_id`, `xkey` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `item` = 'PROJECTION' AND `content_id` IN ($placeholders)", $contentIds );
+	$projections = \Bitweaver\Liberty\LibertyContent::lookupXrefValues( $contentIds, 'PROJECTION' );
 	foreach( $contentList as &$row ) {
 		$row['projection'] = $projections[$row['content_id']] ?? null;
 	}

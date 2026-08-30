@@ -28,7 +28,7 @@ namespace Bitweaver\Mapper;
  * @return array{mapset: array, mapCgiPath: string, gdalWmsPath: ?string, resolvedKey: string, map: ?Map}|null
  */
 function mapper_resolve_mapset( ?int $pContentId, string $pResolvedMapsetKey ): ?array {
-	global $gBitDb, $gBitDbName;
+	global $gBitDbName;
 
 	// Registry loaded upfront (not just in the fallback branch below) so an empty key can
 	// resolve to the site's own default and get tried as a real Map slug first - the package
@@ -95,19 +95,17 @@ function mapper_resolve_mapset( ?int $pContentId, string $pResolvedMapsetKey ): 
 
 		// EXCL/OVERVIEWHEIGHT are short scalars living in XKEY (template 'value', see
 		// Map::upsertSingleXref()'s own doc comment) - EXTENT/SHPPATH are still in the DATA blob
-		// (too long for XKEY's 32-char limit), so both columns are needed here.
-		$generalRows = $gBitDb->query( "SELECT `item`, `xkey`, `data` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` IN ('EXTENT','SHPPATH','EXCL','OVERVIEWHEIGHT')", [ $pContentId ] );
-		$generalData = $generalXkey = [];
-		if( $generalRows ) {
-			foreach( $generalRows as $row ) {
-				$generalData[$row['item']] = $row['data'];
-				$generalXkey[$row['item']] = $row['xkey'];
-			}
-		}
-		$extentData = !empty( $generalData['EXTENT'] ) ? json_decode( $generalData['EXTENT'], true ) : null;
-		$shapePath = $generalData['SHPPATH'] ?? null;
-		$exclusive = !isset( $generalXkey['EXCL'] ) || $generalXkey['EXCL'] === '1';
-		$overviewHeight = !empty( $generalXkey['OVERVIEWHEIGHT'] ) ? (int)$generalXkey['OVERVIEWHEIGHT'] : null;
+		// (too long for XKEY's 32-char limit), so both columns are needed here. All four are
+		// already in $map->mXrefInfo - load() above calls loadXrefInfo() itself.
+		$extentRow   = $map->mXrefInfo->findRowByItem( 'EXTENT' );
+		$shppathRow  = $map->mXrefInfo->findRowByItem( 'SHPPATH' );
+		$exclRow     = $map->mXrefInfo->findRowByItem( 'EXCL' );
+		$overviewRow = $map->mXrefInfo->findRowByItem( 'OVERVIEWHEIGHT' );
+
+		$extentData = !empty( $extentRow['data'] ) ? json_decode( $extentRow['data'], true ) : null;
+		$shapePath = $shppathRow['data'] ?? null;
+		$exclusive = !$exclRow || $exclRow['xkey'] === '1';
+		$overviewHeight = !empty( $overviewRow['xkey'] ) ? (int)$overviewRow['xkey'] : null;
 
 		// "does the source actually exist on this server" - equivalent to the old registry's
 		// dataDir check, but driven by the mapfile's own SHAPEPATH (extracted at upload time)
@@ -116,22 +114,22 @@ function mapper_resolve_mapset( ?int $pContentId, string $pResolvedMapsetKey ): 
 			return null;
 		}
 
+		// 'layers' group holds only LAYER rows (schema_inc.php), already xorder-sorted by
+		// loadContent()'s own query - same $map->mXrefInfo as the general items above.
 		$layerList = $layerAlias = $layerVisible = $layerIsQueryable = $layerLink = [];
 		$gdalWmsPath = null;
-		if( $layerRows = $gBitDb->query( "SELECT `xkey`, `xkey_ext`, `data` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = 'LAYER' ORDER BY `xorder`", [ $pContentId ] ) ) {
-			foreach( $layerRows as $row ) {
-				$layerList[] = $row['xkey'];
-				$layerAlias[] = $row['xkey_ext'] ?: $row['xkey'];
-				$decoded = json_decode( $row['data'], true ) ?: [];
-				$layerVisible[] = !empty( $decoded['visible'] );
-				$layerIsQueryable[] = !empty( $decoded['queryable'] );
-				$layerLink[] = $decoded['link'] ?? 0;
-				// XYZ/GDAL-WMS-backed layers reference their tile connector directly in the
-				// mapfile's own DATA directive - every XYZ mapset in this project has exactly
-				// one layer, so the first (only) match settles it for the whole mapset.
-				if( $gdalWmsPath === null && !empty( $decoded['data'] ) && preg_match( '/_gdalwms\.xml$/i', $decoded['data'] ) ) {
-					$gdalWmsPath = '/etc/webstack/mapserver/data/'.$decoded['data'];
-				}
+		foreach( $map->mXrefInfo->mGroups['layers']->mXrefs ?? [] as $row ) {
+			$layerList[] = $row['xkey'];
+			$layerAlias[] = $row['xkey_ext'] ?: $row['xkey'];
+			$decoded = json_decode( $row['data'], true ) ?: [];
+			$layerVisible[] = !empty( $decoded['visible'] );
+			$layerIsQueryable[] = !empty( $decoded['queryable'] );
+			$layerLink[] = $decoded['link'] ?? 0;
+			// XYZ/GDAL-WMS-backed layers reference their tile connector directly in the
+			// mapfile's own DATA directive - every XYZ mapset in this project has exactly
+			// one layer, so the first (only) match settles it for the whole mapset.
+			if( $gdalWmsPath === null && !empty( $decoded['data'] ) && preg_match( '/_gdalwms\.xml$/i', $decoded['data'] ) ) {
+				$gdalWmsPath = '/etc/webstack/mapserver/data/'.$decoded['data'];
 			}
 		}
 

@@ -18,7 +18,7 @@ define( 'MAPPER_CONTENT_TYPE_GUID', 'mapper' );
 * A Map is a plain LibertyMime content item - title + one uploaded .map file. No own table:
 * content_id is the sole identity (unlike FisheyeImage/StockAssembly's own image_id/assembly_id -
 * those need an owned table for typed fields like width/height; Map's equivalent "extra fields"
-* (EXTENT, SHAPEPATH, EXCL, per-layer LAYER rows) go through the generic liberty_xref tables
+* (EXTENT, SHAPEPATH, EXCL, per-layer LAYER rows) go through the generic Xref system
 * instead - see admin/schema_inc.php and mapper/CLAUDE.md).
 */
 class Map extends LibertyMime
@@ -218,7 +218,7 @@ class Map extends LibertyMime
 		// Populates $this->mXrefInfo (EXTENT/SHPPATH/EXCL/OVERVIEWHEIGHT/LAYER all live in
 		// normal, sort_order>0 display groups - unlike Contact's type-marker items, these
 		// belong in the normal loaded-object state) so xref reads/writes below can go
-		// through it instead of querying liberty_xref directly.
+		// through it instead of querying Xref directly.
 		$this->loadXrefInfo();
 
 		return true;
@@ -659,7 +659,7 @@ class Map extends LibertyMime
 	private function upsertSingleXref( string $pGroup, string $pItem, string $pValue, bool $pUseXkey = false, ?string $pXkeyExt = null ): void {
 		// EXTENT/SHPPATH/EXCL/OVERVIEWHEIGHT/PROJECTION all live in normal, sort_order>0
 		// display groups (unlike Contact's type-marker items), so they're genuinely in
-		// $this->mXrefInfo once loaded - no need to query liberty_xref directly here.
+		// $this->mXrefInfo once loaded - no need to query Xref directly here.
 		$existingXrefId = $this->mXrefInfo?->findByItem( $pItem )[0] ?? null;
 		$xrefHash = [
 			'content_id' => $this->mContentId,

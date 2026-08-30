@@ -74,14 +74,13 @@ if( !empty( $_REQUEST['cancel'] ) ) {
 $errors = !empty( $gContent->mErrors ) ? $gContent->mErrors : [];
 $gBitSmarty->assign( 'errors', $errors );
 
-global $gBitDb;
 // EXCL is a registered xref item (template 'value') now - editable through the generic xref UI
-// below (loadXrefInfo()/$gXrefInfo), no dedicated form field needed here any more.
-$currentOverviewHeight = $gBitDb->getOne( "SELECT `xkey` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = 'OVERVIEWHEIGHT'", [ $gContent->mContentId ] );
-$gBitSmarty->assign( 'mapOverviewHeight', $currentOverviewHeight );
-
+// below ($gXrefInfo), no dedicated form field needed here any more.
 $gContent->loadXrefInfo();
 $gBitSmarty->assign( 'gXrefInfo', $gContent->mXrefInfo );
+
+$overviewHeightRow = $gContent->mXrefInfo->findRowByItem( 'OVERVIEWHEIGHT' );
+$gBitSmarty->assign( 'mapOverviewHeight', $overviewHeightRow['xkey'] ?? null );
 
 $mapFilePath = $gContent->getSourceFile( $gContent->mInfo['map_file'] ?? [] );
 $gBitSmarty->assign( 'mapFileContent', ( $mapFilePath && is_readable( $mapFilePath ) ) ? file_get_contents( $mapFilePath ) : '' );
