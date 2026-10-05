@@ -32,37 +32,26 @@ class BitMapper extends LibertyMime
 		}
 	}
 
-	function verifySettings( &$pParamHash ) {
-		$defaults = $this->getDefaultSettings();
-		
-		// let's trim out all whitespace
-		foreach( array_keys( $pParamHash ) as $key ) {
-			$pParamHash[$key] = trim( $pParamHash[$key] );
-		}
-
-		if( isset( $pParamHash['font'] ) && ( $pParamHash['font'] != $defaults['font'] ) ) {
-			$pParamHash['setting_store']['font'] = $pParamHash['font'];
-		}
-
-		if( !empty( $pParamHash['maps_dir'] ) && ( rtrim( $pParamHash['maps_dir'], '/' ) != $defaults['maps_dir'] ) ) {
-			$pParamHash['setting_store']['maps_dir'] = rtrim( $pParamHash['maps_dir'], '/' );
-		}
-
-		if( isset( $pParamHash['autotrack'] ) ) {
-			$pParamHash['setting_store']['autotrack'] = $pParamHash['autotrack'];
-		}
-
-		return( !empty( $pParamHash['setting_store'] ) );
-	}
-
+	/**
+	 * Store the settings from the admin form, one kernel_config row each. A blank value, or one equal
+	 * to its default, is not kept, so clearing a field puts it back to the default.
+	 * Each row is written on its own with storeConfig(). It must NOT wipe the package's whole config
+	 * (expungePackageConfig()), which would also delete the package_mapper active flag, the package
+	 * version and the menu settings, all of which are kernel_config rows with package = 'mapper'.
+	 */
 	function storeSettings( &$pParamHash ) {
 		global $gBitSystem;
-		$gBitSystem->expungePackagePreferences( MAPPER_PKG_NAME );
-		if( $this->verifySettings( $pParamHash ) ) {
-			foreach( array_keys( $pParamHash['setting_store'] ) as $key ) {
-				$gBitSystem->storeConfig( $key, $pParamHash['setting_store'][$key],  MAPPER_PKG_NAME );
-				$this->mSettings[$key] = $pParamHash['setting_store'][$key];
-			}
+		$defaults = $this->getDefaultSettings();
+		$get = fn( $pKey ) => is_string( $pParamHash[$pKey] ?? null ) ? trim( $pParamHash[$pKey] ) : '';
+		$posted = [
+			'font'      => $get( 'font' ),
+			'maps_dir'  => rtrim( $get( 'maps_dir' ), '/' ),
+			'autotrack' => !empty( $pParamHash['autotrack'] ) ? 'on' : '',
+		];
+		foreach( $posted as $key => $value ) {
+			$keep = ( $value !== '' && $value != $defaults[$key] ) ? $value : '';
+			$gBitSystem->storeConfig( $key, $keep, MAPPER_PKG_NAME );
+			$this->mSettings[$key] = ( $keep !== '' ) ? $keep : $defaults[$key];
 		}
 	}
 
