@@ -15,7 +15,7 @@ use Bitweaver\KernelTools;
 
 global $gBitSystem, $gBitSmarty, $gBitUser, $gBitDb;
 
-$gBitSystem->verifyPermission( 'bit_p_create_mapper' );
+$gBitSystem->verifyPermission( 'p_mapper_create' );
 
 // Mapfile descriptions are longer than a title, so rows are tall - keep each submit small.
 const LOAD_MAP_BATCH = 10;

@@ -61,7 +61,7 @@ if( !in_array( $rawLayer, $mapsetInfo['layerList'] ?? [], true ) ) {
 // by PHP per file read. Cache is shared across every site (see MAPS_DIR below), so this is a
 // once-only cost per mapset/layer/tile - the first site to render it benefits every other site's
 // requests for the same tile too, not just its own.
-$allowed = $map ? $map->hasViewPermission() : $gBitUser->hasPermission( 'bit_p_view_mapper' );
+$allowed = $map ? $map->hasViewPermission() : $gBitUser->hasPermission( 'p_mapper_list_maps' );
 if( !$allowed ) {
 	http_response_code( 403 );
 	exit;

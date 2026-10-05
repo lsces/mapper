@@ -194,7 +194,7 @@ manually-maintained registry entry.
 Returns `['mapset' => [...], 'mapCgiPath' => ..., 'gdalWmsPath' => ..., 'resolvedKey' => ...,
 'map' => ?Map]` — callers branch permission logic on whether `map` came back non-null
 (protector-aware `$map->hasViewPermission()`/`verifyViewPermission()` for a real object, vs. the
-registry's blanket `bit_p_view_mapper`/`bit_p_v_map_mapper` permission check otherwise).
+registry's blanket `p_mapper_list_maps`/`p_mapper_view` permission check otherwise).
 
 ### Slugs
 
@@ -377,15 +377,15 @@ whatever the sync source happens to have.
 ## Permissions
 
 Three permissions, checked via the standard `LibertyContent` mechanism
-(`mViewContentPerm`/`mUpdateContentPerm`/`mAdminContentPerm` on `Map`, `bit_p_view_mapper`/
-`bit_p_edit_mapper`/`bit_p_admin_mapper`). A real `Map` object is additionally
+(`mViewContentPerm`/`mUpdateContentPerm`/`mAdminContentPerm` on `Map`, `p_mapper_list_maps`/
+`p_mapper_edit`/`p_mapper_admin`). A real `Map` object is additionally
 protector-aware — `Map::load()` calls `getServicesSql( 'content_load_sql_function', ..., $this )`
 so per-object role restrictions set via the protector package are actually enforced (the base
 `LibertyContent`/`LibertyMime` `load()` never calls this itself; only a subclass override does).
 
-The legacy registry path has no per-object granularity — `bit_p_view_mapper` (registered users)
+The legacy registry path has no per-object granularity — `p_mapper_list_maps` (registered users)
 gates every registry mapset except the public `test` demo, which uses the more permissive
-`bit_p_v_map_mapper`. A bare `/mapper/display_map.php` URL (no explicit mapset/content_id) falls
+`p_mapper_view`. A bare `/mapper/display_map.php` URL (no explicit mapset/content_id) falls
 back to the `test` demo for a user who lacks the registry default's permission, rather than a
 login wall — an explicit `?mapset=<key>` still gets the normal permission-denied response.
 

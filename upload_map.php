@@ -11,7 +11,7 @@ use function Bitweaver\Liberty\liberty_process_archive;
 
 global $gBitSystem, $gBitSmarty, $gBitUser;
 
-$gBitSystem->verifyPermission( 'bit_p_create_mapper' );
+$gBitSystem->verifyPermission( 'p_mapper_create' );
 
 /**
  * Batch-import every *.map file found directly inside an extracted archive - flat only, no

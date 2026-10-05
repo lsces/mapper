@@ -10,7 +10,7 @@
  *
  * Each caller keeps its own page-specific concerns around this: permission checking (the
  * content_id path is protector-aware via Map::load(), the registry path uses the blanket
- * bit_p_view_mapper/bit_p_v_map_mapper permissions - genuinely different mechanisms, not
+ * p_mapper_list_maps/p_mapper_view permissions - genuinely different mechanisms, not
  * something to paper over here), the "explicit key given but not found" 404 vs "no key given,
  * fall back to default" distinction, and display_map.php's own anonymous-user soft-fallback
  * to the public 'test' demo.

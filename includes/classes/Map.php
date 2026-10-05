@@ -51,9 +51,9 @@ class Map extends LibertyMime
 			],
 		);
 
-		$this->mViewContentPerm   = 'bit_p_view_mapper';
-		$this->mUpdateContentPerm = 'bit_p_edit_mapper';
-		$this->mAdminContentPerm  = 'bit_p_admin_mapper';
+		$this->mViewContentPerm   = 'p_mapper_list_maps';
+		$this->mUpdateContentPerm = 'p_mapper_edit';
+		$this->mAdminContentPerm  = 'p_mapper_admin';
 	}
 
 	/** view.php is the metadata/info page (title, description, layers, extent) - separate from

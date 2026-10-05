@@ -58,7 +58,7 @@ if( $map ) {
 	// verified live for view.php/edit.php, see protector/CLAUDE.md.
 	$map->verifyViewPermission();
 } else {
-	$gBitSystem->verifyPermission( 'bit_p_view_mapper' );
+	$gBitSystem->verifyPermission( 'p_mapper_list_maps' );
 }
 
 $gBitSystem->setBrowserTitle( 'Map - '.$mapset['title'] );

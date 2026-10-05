@@ -9,11 +9,11 @@ $gBitInstaller->registerPackageInfo( MAPPER_PKG_NAME, array(
 
 // ### Default UserPermissions
 $gBitInstaller->registerUserPermissions( MAPPER_PKG_NAME, array(
-	array('bit_p_v_map_mapper', 'Can view MAP files', 'basic', 'mapper'),
-	array('bit_p_view_mapper', 'Can view map archives', 'registered', 'mapper'),
-	array('bit_p_create_mapper', 'Can create a map archive', 'registered', 'mapper'),
-	array('bit_p_edit_mapper', 'Can edit map archives', 'registered', 'mapper'),
-	array('bit_p_admin_mapper', 'Can admin map archives', 'editors', 'mapper')
+	array('p_mapper_view', 'Can view the public demo map (anonymous viewer)', 'basic', 'mapper'),
+	array('p_mapper_list_maps', 'Can list and view map archives', 'registered', 'mapper'),
+	array('p_mapper_create', 'Can create a map archive', 'editors', 'mapper'),
+	array('p_mapper_edit', 'Can edit map archives', 'editors', 'mapper'),
+	array('p_mapper_admin', 'Can admin map archives', 'admin', 'mapper')
 ) );
 
 // ### Register the Map content type so getLibertyObject() can resolve it - registerContentType()

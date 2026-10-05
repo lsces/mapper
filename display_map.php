@@ -52,24 +52,24 @@ if( $map ) {
 	$map->verifyViewPermission();
 	$contentId = $map->mContentId;
 } else {
-	// 'test' is the public package demo mapset (bit_p_v_map_mapper, basic/anonymous) -
+	// 'test' is the public package demo mapset (p_mapper_view, basic/anonymous) -
 	// everything else (iom, meridian, minisc, opmplc, vmdvec) is real OS-licensed data or private
-	// family genealogy data, gated behind bit_p_view_mapper (registered). test is a real Map
+	// family genealogy data, gated behind p_mapper_list_maps (registered). test is a real Map
 	// object now (content_id 16, formerly titled 'test_rlp') but deliberately still resolved+
 	// permission-checked via this
 	// registry-style blanket path, not Map::verifyViewPermission() - it has no explicit
 	// liberty_content_permissions row, so the protector-aware check would fall back to
-	// bit_p_view_mapper (registered-only), silently tightening what's meant to stay a public,
+	// p_mapper_list_maps (registered-only), silently tightening what's meant to stay a public,
 	// anonymous-visible demo.
-	$requiredPermission = $resolvedMapsetKey === 'test' ? 'bit_p_v_map_mapper' : 'bit_p_view_mapper';
+	$requiredPermission = $resolvedMapsetKey === 'test' ? 'p_mapper_view' : 'p_mapper_list_maps';
 
 	// No mapset was explicitly requested (bare URL) and the resolved site default isn't visible
 	// to this user - fall back to the public demo instead of a login wall, since they didn't ask
 	// for anything specific. An explicit ?mapset=iom (or similar) still gets the normal login
 	// prompt below - only the no-param "just take me to the default" case gets this softer landing.
-	if( empty( $rawMapset ) && $requiredPermission !== 'bit_p_v_map_mapper' && !$gBitUser->hasPermission( $requiredPermission ) ) {
+	if( empty( $rawMapset ) && $requiredPermission !== 'p_mapper_view' && !$gBitUser->hasPermission( $requiredPermission ) ) {
 		$resolvedMapsetKey = 'test';
-		$requiredPermission = 'bit_p_v_map_mapper';
+		$requiredPermission = 'p_mapper_view';
 		$resolved = mapper_resolve_mapset( null, 'test' );
 		$mapset = $resolved['mapset'];
 	}
