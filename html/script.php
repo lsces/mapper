@@ -26,6 +26,17 @@ $resolved = mapper_resolve_mapset( $contentId, $rawMapset ) ?? mapper_resolve_ma
 $mapset = $resolved['mapset'];
 $mapPath = $resolved['mapCgiPath'];
 $requestedMapset = $resolved['resolvedKey'];
+
+// The map's own description (rendered through its format plugin, as view.php does) and the URL
+// that switches this map to the Leaflet viewer. script.php can be fetched without going through
+// display_map.php, so the description is only handed out when the map's own view permission
+// allows it. Registry mapsets (no Map object) have no description.
+$mapObject = $resolved['map'] ?? null;
+$mapDescription = '';
+if( $mapObject && $mapObject->hasViewPermission() ) {
+	$mapDescription = (string)$mapObject->getParsedData();
+}
+$viewerSwitchUrl = MAPPER_PKG_URL.'display_map2.php?'.( $mapObject ? 'content_id='.(int)$mapObject->mContentId : 'mapset='.rawurlencode( $requestedMapset ) );
 ?>
 <!-- MapServer Template -->
 <!DOCTYPE html>
@@ -75,6 +86,8 @@ function closeWindows() {
 <script language="javascript">
 //active mapset, resolved server-side - see includes/mapsets_inc.php
 var mapsetKey = <?php echo json_encode( $requestedMapset ); ?>;
+var mapDescription = <?php echo json_encode( $mapDescription ); ?>;
+var viewerSwitchUrl = <?php echo json_encode( $viewerSwitchUrl ); ?>;
 var mapPath = <?php echo json_encode( $mapPath ); ?>;
 var layerList = <?php echo json_encode( array_values( $mapset['layerList'] ) ); ?>;
 var layerAlias = <?php echo json_encode( array_values( $mapset['layerAlias'] ) ); ?>;

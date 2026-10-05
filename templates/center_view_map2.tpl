@@ -22,12 +22,24 @@
 	}
 }
 .mapper-overview-box { width: var(--overview-w); height: var(--overview-h); }
+/* "i" control: a button under the zoom buttons that opens the map's description as a panel over
+   the map, so the description never takes space from the map itself. */
+.mapper-about-btn { display: block; width: 30px; height: 30px; text-align: center; background: #fff; color: #333; text-decoration: none; font: italic bold 18px/30px Georgia, serif; }
+.mapper-about-btn:hover { background: #f4f4f4; color: #000; text-decoration: none; }
+.mapper-about-panel { display: none; position: absolute; top: 0; left: 36px; width: 360px; max-width: calc( 100vw - 90px ); max-height: 70vh; overflow: auto; background: #fff; color: #333; border: 1px solid #888; border-radius: 4px; padding: 10px 14px; box-shadow: 0 1px 5px rgba( 0, 0, 0, 0.4 ); text-align: left; cursor: auto; }
+/* Leaflet sets its container to 12px, which is too small for reading a paragraph - set an explicit
+   size here instead of scaling from it. */
+.mapper-about-panel, .mapper-about-panel p { font: 16px/1.45 "Helvetica Neue", Arial, Helvetica, sans-serif; }
+.mapper-about-panel p { margin: 0 0 0.6em 0; }
+.mapper-about-panel.open { display: block; }
+.mapper-about-panel p:last-child { margin-bottom: 0; }
 </style>
 
 <div class="floaticon">{bithelp}</div>
 
 <div class="display map">
 	<div class="header">
+		<a class="btn btn-default btn-sm pull-right" href="{$classicViewerUrl|escape}" title="{tr}Open this map in the classic viewer{/tr}">{tr}Open in classic viewer{/tr}</a>
 		<h1>{tr}Map{/tr} - {$mapsetTitle|escape}</h1>
 	</div>
 	<div id="leafletMap"></div>
@@ -161,4 +173,33 @@
 		}
 	} );
 	leafletMap.addControl( new OverviewControl() );
+
+	// The map's own description, as an "i" button under the zoom controls that toggles a panel
+	// over the map. Only added for a real Map with a description. The text is the same format-
+	// plugin output view.php shows, passed as a JSON string.
+	var aboutHtml = {$mapDescriptionJson nofilter};
+	if( aboutHtml ) {
+		var AboutControl = L.Control.extend( {
+			options: { position: "topleft" },
+			onAdd: function() {
+				var container = L.DomUtil.create( "div", "leaflet-bar mapper-about" );
+				var button = L.DomUtil.create( "a", "mapper-about-btn", container );
+				button.href = "#";
+				button.title = "About this map";
+				button.setAttribute( "role", "button" );
+				button.setAttribute( "aria-label", "About this map" );
+				button.textContent = "i";
+				var panel = L.DomUtil.create( "div", "mapper-about-panel", container );
+				panel.innerHTML = aboutHtml;
+				L.DomEvent.disableClickPropagation( container );
+				L.DomEvent.disableScrollPropagation( container );
+				L.DomEvent.on( button, "click", function( e ) {
+					L.DomEvent.preventDefault( e );
+					panel.classList.toggle( "open" );
+				} );
+				return container;
+			}
+		} );
+		leafletMap.addControl( new AboutControl() );
+	}
 </script>

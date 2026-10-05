@@ -41,6 +41,10 @@ if(parent.ScriptFrame.hasHTMLLegend){
 	legendHtml = '<img src="'+parent.FormFrame.leg+'">';
 }
 document.body.insertAdjacentHTML('beforeend', legendHtml);
+// the map's own description, under the legend (set by script.php)
+if( t.mapDescription ) {
+	document.body.insertAdjacentHTML('beforeend', '<div class="map-description" style="margin:8px 4px 0 4px; padding-top:6px; border-top:1px solid #ccc; font-size:0.9em;">' + t.mapDescription + '</div>');
+}
 </script>
 </body>
 </html>

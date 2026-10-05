@@ -150,6 +150,10 @@ if( !empty( $mapset['extent'] ) ) {
 
 $gBitSmarty->assign( 'mapset', $resolvedMapsetKey );
 $gBitSmarty->assign( 'mapsetTitle', $mapset['title'] );
+// description (a real Map's own, via its format plugin - its view permission was verified above)
+// and the link across to the classic frameset viewer
+$gBitSmarty->assign( 'mapDescriptionJson', json_encode( $map ? (string)$map->getParsedData() : '', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT ) );
+$gBitSmarty->assign( 'classicViewerUrl', MAPPER_PKG_URL.'display_map.php?'.( $map ? 'content_id='.(int)$map->mContentId : 'mapset='.rawurlencode( $resolvedMapsetKey ) ) );
 $gBitSmarty->assign( 'layersConfigJson', json_encode( $layersConfig ) );
 $gBitSmarty->assign( 'mapBoundsJson', json_encode( $mapBounds ) );
 // Overview box height - defaults to a square 150px matching the width, but some mapsets (GB-
