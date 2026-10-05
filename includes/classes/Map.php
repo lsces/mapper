@@ -353,10 +353,13 @@ class Map extends LibertyMime
 	private function parseMapFile( string $pSourceFile ): array {
 		$lines = file( $pSourceFile, FILE_IGNORE_NEW_LINES );
 		if( !$lines ) {
-			return [ 'name' => null, 'extent' => null, 'shapePath' => null, 'excl' => null, 'projection' => null, 'description' => null, 'layers' => [] ];
+			return [ 'name' => null, 'extent' => null, 'shapePath' => null, 'excl' => null, 'projection' => null, 'description' => null, 'referenceImage' => null, 'connections' => [], 'layers' => [] ];
 		}
 
-		$name = $extent = $shapePath = $excl = $projection = null;
+		$name = $extent = $shapePath = $excl = $projection = $referenceImage = null;
+		$inReference = false;
+		$referenceDepth = 0;
+		$connections = [];
 		$descriptionLines = [];
 		$layers = [];
 		$depth = 0;
@@ -417,6 +420,9 @@ class Map extends LibertyMime
 					if( $inProjection && $depth === $projectionDepth ) {
 						$inProjection = false;
 					}
+					if( $inReference && $depth === $referenceDepth ) {
+						$inReference = false;
+					}
 					if( $depth > 0 ) { $depth--; }
 					continue;
 				}
@@ -428,6 +434,11 @@ class Map extends LibertyMime
 				} elseif( $keyword === 'PROJECTION' && !$inLayer && $projection === null ) {
 					$inProjection = true;
 					$projectionDepth = $depth;
+				} elseif( $keyword === 'REFERENCE' && !$inLayer && $referenceImage === null ) {
+					// the overview thumbnail's image path - MapServer fails the whole draw if it
+					// can't open it, so it is worth knowing whether it exists (see archiveOverview())
+					$inReference = true;
+					$referenceDepth = $depth;
 				}
 				continue;
 			}
@@ -448,7 +459,10 @@ class Map extends LibertyMime
 					// classic vector/raster ones reading straight off SHAPEPATH - see
 					// display_map2.php's content_id resolution path.
 					case 'DATA':   $currentLayer['data']   = $value; break;
+					case 'CONNECTION': $connections[] = $value; break;
 				}
+			} elseif( $inReference && $depth === $referenceDepth ) {
+				if( $referenceImage === null && $keyword === 'IMAGE' ) { $referenceImage = $value; }
 			} elseif( $depth === 0 ) {
 				if( $name === null && $keyword === 'NAME' )           { $name = $value; }
 				if( $extent === null && $keyword === 'EXTENT' )       { $extent = $value; }
@@ -456,7 +470,7 @@ class Map extends LibertyMime
 			}
 		}
 
-		return [ 'name' => $name, 'extent' => $extent, 'shapePath' => $shapePath, 'excl' => $excl, 'projection' => $projection, 'description' => self::descriptionToHtml( $descriptionLines ), 'layers' => $layers ];
+		return [ 'name' => $name, 'extent' => $extent, 'shapePath' => $shapePath, 'excl' => $excl, 'projection' => $projection, 'description' => self::descriptionToHtml( $descriptionLines ), 'referenceImage' => $referenceImage, 'connections' => $connections, 'layers' => $layers ];
 	}
 
 	/**
@@ -489,14 +503,202 @@ class Map extends LibertyMime
 	public function describeMapFile( string $pSourceFile ): array {
 		$parsed = $this->parseMapFile( $pSourceFile );
 		return [
-			'title'       => self::titleFromMapFile( $parsed['name'], basename( $pSourceFile ) ),
-			'description' => $parsed['description'],
+			'title'          => self::titleFromMapFile( $parsed['name'], basename( $pSourceFile ) ),
+			'description'    => $parsed['description'],
+			'referenceImage' => $parsed['referenceImage'],
+			'shapePath'      => $parsed['shapePath'],
+			'connections'    => $parsed['connections'],
 		];
+	}
+
+	/**
+	 * How far a map's folder mapfile is from the self-contained rule: a reference image at
+	 * tiles/reference.png (present), SHAPEPATH and CONNECTION relative to the folder (no site path,
+	 * nothing shared outside it). Returns a list of short issue texts, empty when it follows the rule.
+	 * $pInfo is describeMapFile()'s result; $pFolderDir the folder's real location, to test the files.
+	 */
+	public static function folderIssues( array $pInfo, string $pFolderDir ): array {
+		$issues = [];
+		$ref = $pInfo['referenceImage'] ?? null;
+		if( $ref === null ) {
+			$issues[] = 'no reference image';
+		} elseif( $ref !== 'tiles/reference.png' ) {
+			$issues[] = 'reference image is not tiles/reference.png';
+		} elseif( !is_file( $pFolderDir.'/tiles/reference.png' ) ) {
+			$issues[] = 'tiles/reference.png is missing';
+		}
+		$shape = $pInfo['shapePath'] ?? null;
+		if( $shape !== null && str_starts_with( $shape, '/srv/website/' ) ) {
+			$issues[] = 'SHAPEPATH is a site path';
+		} elseif( $shape !== null && str_starts_with( $shape, '/' ) ) {
+			$issues[] = 'SHAPEPATH is outside the folder';
+		}
+		$base = ( $shape === null || str_starts_with( $shape, '/' ) ) ? null : ( $shape === '.' ? $pFolderDir : $pFolderDir.'/'.$shape );
+		foreach( $pInfo['connections'] ?? [] as $connection ) {
+			if( str_starts_with( $connection, '/' ) ) {
+				$issues[] = 'absolute CONNECTION';
+			} elseif( $base !== null && preg_match( '/\.(gpkg|shp|tif|tiff)$/i', $connection ) && !file_exists( $base.'/'.$connection ) ) {
+				$issues[] = 'CONNECTION file '.basename( $connection ).' is missing';
+			}
+		}
+		return array_values( array_unique( $issues ) );
+	}
+
+	/**
+	 * Replace this loaded map's stored mapfile with its current folder file and re-read it: the
+	 * way to pick up a folder mapfile that has been changed (moved to the folder rule, say) without
+	 * deleting and reloading the record. Keeps the record, its description (a blank one is filled
+	 * from the file's DESCRIPTION comment) and its permissions; the layers are re-read from the file,
+	 * so per-layer queryable flags are reset, as with any reload. Needs the maps folder to hold a
+	 * .map whose title matches this map. False, with $this->mErrors set, when it cannot.
+	 */
+	public function refreshFromFolder( string $pBaseDir ): bool {
+		$pBaseDir = rtrim( $pBaseDir, '/' );
+		$slug = self::slugify( $this->getTitle() );
+		$folderRow = $this->mXrefInfo?->findRowByItem( 'FOLDER' );
+		$source = null;
+		$folder = null;
+		foreach( ( $pBaseDir !== '' && is_dir( $pBaseDir ) ) ? scandir( $pBaseDir ) : [] as $entry ) {
+			if( str_starts_with( $entry, '.' ) || !is_dir( $pBaseDir.'/'.$entry ) ) {
+				continue;
+			}
+			foreach( glob( $pBaseDir.'/'.$entry.'/*.map' ) ?: [] as $candidate ) {
+				if( self::slugify( $this->describeMapFile( $candidate )['title'] ) === $slug ) {
+					// the recorded folder wins when several folders hold the same mapfile
+					if( $source === null || $entry === ( $folderRow['xkey'] ?? null ) ) {
+						$source = $candidate;
+						$folder = $entry;
+					}
+				}
+			}
+		}
+		if( $source === null ) {
+			$this->mErrors[] = KernelTools::tra( 'No mapfile for this map was found in the maps folder.' );
+			return false;
+		}
+		$stored = $this->getSourceFile( $this->mInfo['map_file'] ?? [] );
+		if( !$stored || !is_writable( $stored ) ) {
+			$this->mErrors[] = KernelTools::tra( 'The stored mapfile is missing or not writable.' );
+			return false;
+		}
+		$text = file_get_contents( $source );
+		if( $text === false || file_put_contents( $stored, $text ) === false ) {
+			$this->mErrors[] = KernelTools::tra( 'Unable to copy the mapfile.' );
+			return false;
+		}
+		// The folder's paths are relative: record the folder, make sure this site has its link, and
+		// rewrite the stored copy onto it - then take the details (extent, layers, shape path) from the
+		// folder file itself, so the recorded shape path stays folder-relative.
+		$parsed = $this->parseMapFile( $source );
+		$this->StartTrans();
+		$this->storeParsedMapFileDetails( $parsed, [ 'content_id' => $this->mContentId, 'folder' => $folder ] );
+		$this->fixRelativePaths( $stored, $folder );
+		$this->CompleteTrans();
+		$this->load();
+		if( !empty( $parsed['description'] ) && trim( (string)( $this->mInfo['data'] ?? '' ) ) === '' ) {
+			$descriptionHash = [ 'content_id' => $this->mContentId, 'title' => $this->getTitle(), 'edit' => $parsed['description'] ];
+			$this->store( $descriptionHash );
+		}
+		return true;
+	}
+
+	/**
+	 * One row per map this site knows about, for the admin "Mapper Archive" tab: the .map files in
+	 * the configured maps folder merged with the Map records already loaded here (matched by title
+	 * slug, the same identity load_map.php uses). Pure read, no side effects.
+	 *
+	 * status: 'loaded' (a record, and a folder file), 'not_loaded' (folder file only) or
+	 * 'not_in_folder' (a record with no folder file - only reported when a folder is configured).
+	 * reference_state: 'ok' / 'missing' (the REFERENCE IMAGE file is not there - MapServer fails
+	 * the whole map draw over this) / 'none' (the mapfile has no reference image) / 'unknown'
+	 * (a relative path). For a loaded map it is checked on the stored copy the viewer actually
+	 * uses, not the folder file, which can differ.
+	 */
+	public static function archiveOverview( string $pBaseDir ): array {
+		global $gBitDb;
+		$reader = new Map();
+		$rows = [];
+
+		$loaded = $gBitDb->getAssoc( "SELECT `content_id`, `title` FROM `".BIT_DB_PREFIX."liberty_content` WHERE `content_type_guid` = ?", [ MAPPER_CONTENT_TYPE_GUID ] );
+		foreach( $loaded as $contentId => $title ) {
+			$map = new Map( (int)$contentId );
+			if( !$map->load() ) {
+				continue;
+			}
+			$stored = $map->getSourceFile( $map->mInfo['map_file'] ?? [] );
+			$info = ( $stored && is_readable( $stored ) ) ? $reader->describeMapFile( $stored ) : null;
+			$rows[self::slugify( (string)$title )] = [
+				'title'            => (string)$title,
+				'content_id'       => (int)$contentId,
+				'folder_file'      => null,
+				'status'           => $pBaseDir === '' ? 'loaded' : 'not_in_folder',
+				'db_description'   => trim( strip_tags( (string)( $map->mInfo['data'] ?? '' ) ) ) !== '',
+				'file_description' => null,
+				'folder_issues'    => null,
+				'reference_path'   => $info['referenceImage'] ?? null,
+			];
+		}
+
+		$entries = ( $pBaseDir !== '' && is_dir( $pBaseDir ) ) ? scandir( $pBaseDir ) : [];
+		natsort( $entries );
+		foreach( $entries as $entry ) {
+			if( str_starts_with( $entry, '.' ) || !is_dir( $pBaseDir.'/'.$entry ) ) {
+				continue;
+			}
+			foreach( glob( $pBaseDir.'/'.$entry.'/*.map' ) ?: [] as $mapFilePath ) {
+				$info = $reader->describeMapFile( $mapFilePath );
+				$slug = self::slugify( $info['title'] );
+				$relative = $entry.'/'.basename( $mapFilePath );
+				if( isset( $rows[$slug] ) ) {
+					if( $rows[$slug]['folder_file'] === null ) {
+						$rows[$slug]['folder_file'] = $relative;
+						$rows[$slug]['file_description'] = !empty( $info['description'] );
+						$rows[$slug]['folder_issues'] = self::folderIssues( $info, $pBaseDir.'/'.$entry );
+						if( $rows[$slug]['status'] === 'not_in_folder' ) {
+							$rows[$slug]['status'] = 'loaded';
+						}
+					}
+					continue; // a second folder holding the same mapfile (e.g. several editions' folders)
+				}
+				$rows[$slug] = [
+					'title'            => $info['title'],
+					'content_id'       => null,
+					'folder_file'      => $relative,
+					'status'           => 'not_loaded',
+					'db_description'   => false,
+					'file_description' => !empty( $info['description'] ),
+					'reference_path'   => $info['referenceImage'],
+					'folder_issues'    => self::folderIssues( $info, $pBaseDir.'/'.$entry ),
+				];
+			}
+		}
+
+		foreach( $rows as &$row ) {
+			$path = $row['reference_path'];
+			if( $path === null || $path === '' ) {
+				$row['reference_state'] = 'none';
+			} elseif( !str_starts_with( $path, '/' ) ) {
+				$row['reference_state'] = 'unknown';
+			} else {
+				$row['reference_state'] = is_file( $path ) ? 'ok' : 'missing';
+			}
+		}
+		unset( $row );
+		uasort( $rows, fn( $a, $b ) => strcasecmp( $a['title'], $b['title'] ) );
+		return array_values( $rows );
 	}
 
 	/** Write the already-parsed details (see parseMapFile()) into the xref tables and retag the
 	 * stored file's mime type - pure DB work, no file access, safe to run after store(). */
 	private function storeParsedMapFileDetails( array $pParsed, array $pParamHash ): void {
+		// The folder under the maps folder this map was loaded from (load_map.php passes it). Recorded
+		// so the mapfile's folder-relative paths can be resolved later, and the storage/mapper/<folder>
+		// link they go through is created here instead of by hand on every machine and site.
+		$folder = ( isset( $pParamHash['folder'] ) && preg_match( '/^[A-Za-z0-9._-]+$/', (string)$pParamHash['folder'] ) ) ? (string)$pParamHash['folder'] : null;
+		if( $folder !== null ) {
+			$this->upsertSingleXref( 'general', 'FOLDER', $folder, true );
+			self::ensureStorageLink( $folder );
+		}
 		[ 'name' => $name, 'extent' => $extent, 'shapePath' => $shapePath, 'excl' => $excl, 'projection' => $projection, 'layers' => $layers ] = $pParsed;
 
 		if( $extent !== null ) {
@@ -611,10 +813,85 @@ class Map extends LibertyMime
 					// did). Rewritten to absolute paths so the stored copy is self-sufficient
 					// regardless of where it physically ends up - same allowed correction as the
 					// filename/mimetype fixes above.
-					$this->fixRelativePaths( STORAGE_PKG_PATH.$destBranch.$finalName );
+					$this->fixRelativePaths( STORAGE_PKG_PATH.$destBranch.$finalName, $folder );
 				}
 			}
 		}
+	}
+
+	/** The current site's own storage/mapper/<folder> - a link each machine points at its copy of the
+	 * maps folder's <folder>. Never a path under another site. */
+	public static function folderStoragePath( string $pFolder ): string {
+		return STORAGE_PKG_PATH.'mapper/'.$pFolder;
+	}
+
+	/** A path written relative to a map's folder, joined onto that folder's storage path. "" and "."
+	 * mean the folder itself; a leading "./" is dropped. */
+	public static function joinFolderPath( string $pFolderPath, string $pRelative ): string {
+		$relative = preg_replace( '#^(\./)+#', '', trim( $pRelative ) );
+		return ( $relative === '' || $relative === '.' ) ? $pFolderPath : $pFolderPath.'/'.$relative;
+	}
+
+	/**
+	 * Make sure this site has storage/mapper/<folder>, pointing at <maps folder>/<folder> - the link
+	 * every folder-relative path goes through. Created here when a map is loaded, so nobody has to
+	 * add it by hand on each machine and site (a missing one was the cause of several maps that loaded
+	 * but would not draw). An existing link or directory is left exactly as it is. False when it
+	 * cannot be made: no maps folder configured, no such folder in it, or storage/mapper not writable.
+	 */
+	public static function ensureStorageLink( string $pFolder ): bool {
+		if( !preg_match( '/^[A-Za-z0-9._-]+$/', $pFolder ) ) {
+			return false;
+		}
+		$link = self::folderStoragePath( $pFolder );
+		if( is_link( $link ) || file_exists( $link ) ) {
+			return true;
+		}
+		$base = rtrim( (string)( ( new BitMapper() )->mSettings['maps_dir'] ?? '' ), '/' );
+		if( $base === '' || !is_dir( $base.'/'.$pFolder ) || !is_dir( dirname( $link ) ) || !is_writable( dirname( $link ) ) ) {
+			return false;
+		}
+		return symlink( $base.'/'.$pFolder, $link );
+	}
+
+	/**
+	 * The recorded SHAPEPATH (SHPPATH record) as it reads on this site, for the "does the data exist
+	 * here" check. A path relative to the map's folder is anchored at the folder's storage link; an
+	 * absolute one goes through siteStoragePath() as before.
+	 */
+	public static function recordedShapePath( string $pRecorded, string $pFolder ): ?string {
+		if( str_starts_with( $pRecorded, '/' ) ) {
+			return self::siteStoragePath( $pRecorded );
+		}
+		// A folder-relative path with no folder recorded cannot be checked - null, not the bare
+		// relative string, which would be tested against whatever the working directory happens to
+		// be (mapper/ for one entry point, mapper/html/ for another).
+		return $pFolder !== '' ? self::joinFolderPath( self::folderStoragePath( $pFolder ), $pRecorded ) : null;
+	}
+
+	/**
+	 * A mapfile's SHAPEPATH (or the SHPPATH record taken from it) as it should read on THIS site:
+	 * a path under any other site's storage/ - e.g. /srv/website/lsces/storage/mapper/<name>, as
+	 * authored in a shared mapfile - moves onto the current site's own storage tree. If the
+	 * resulting directory is missing but a directory differing only in letter case is there
+	 * (OS_Open_Zoomstack_2026 against os_open_zoomstack_2026), that one is used instead, since the
+	 * filesystem is case-sensitive and the folder names are what they are. Shared by
+	 * fixRelativePaths() (the stored file) and resolve_mapset_inc.php (the "does the data exist
+	 * here" check) so the two cannot disagree again.
+	 */
+	public static function siteStoragePath( string $pPath ): string {
+		$path = preg_replace( '#^/srv/website/[^/]+/storage/#', STORAGE_PKG_PATH, $pPath );
+		if( !is_dir( $path ) ) {
+			$parent = dirname( $path );
+			if( is_dir( $parent ) ) {
+				foreach( scandir( $parent ) ?: [] as $entry ) {
+					if( strcasecmp( $entry, basename( $path ) ) === 0 && is_dir( $parent.'/'.$entry ) ) {
+						return $parent.'/'.$entry;
+					}
+				}
+			}
+		}
+		return $path;
 	}
 
 	/** Rewrite every relative "../..." path this project's mapfiles reference (symbols, HTML
@@ -638,10 +915,17 @@ class Map extends LibertyMime
 	 * paths onto desktop, breaking content_id=7390's TEMPLATE resolution: "/srv/website/lsces/
 	 * mapper/html/form.html doesn't look like a MapServer template" - the file's fine, desktop
 	 * just isn't lsces here). See resolve_mapset_inc.php's call site. */
-	public function fixRelativePaths( string $pFilePath ): void {
+	public function fixRelativePaths( string $pFilePath, ?string $pFolder = null ): void {
 		$content = file_get_contents( $pFilePath );
 		if( $content === false ) {
 			return;
+		}
+		// Which folder of the maps folder this map belongs to - given when the copy is first made,
+		// otherwise read from the FOLDER record (every later resolve). Empty for a map loaded before
+		// folders were recorded, which keeps the older absolute-path handling below.
+		if( $pFolder === null ) {
+			$folderRow = $this->mXrefInfo?->findRowByItem( 'FOLDER' );
+			$pFolder = (string)( $folderRow['xkey'] ?? '' );
 		}
 		$fixed = preg_replace_callback(
 			'/^(\s*(?:SYMBOLSET|FONTSET|TEMPLATE|HEADER|FOOTER|EMPTY|IMAGE)\s+")(?:\.\.\/|\/srv\/website\/[^\/"]+\/mapper\/)([^"]+)(")/mi',
@@ -673,6 +957,44 @@ class Map extends LibertyMime
 		// itself") is left alone rather than guessed at.
 		$fixed = preg_replace_callback(
 			'/^(\s*SHAPEPATH\s+")\/srv\/website\/[^\/"]+\/storage\/([^"]+)(")/mi',
+			function( $m ) {
+				return $m[1].self::siteStoragePath( STORAGE_PKG_PATH.$m[2] ).$m[3];
+			},
+			$fixed ?? $content
+		);
+
+		// Paths written relative to the map's own folder - the rule for a self-contained map:
+		// SHAPEPATH (".", "data/...") and the REFERENCE image ("tiles/reference.png"). They are
+		// resolved against this site's storage/mapper/<folder> link, which each machine points at its
+		// own copy of the maps folder - the one path that reads the same on every machine, so a stored
+		// copy that is synced elsewhere still works. Absolute paths and ../ package paths are not
+		// touched here (the passes around this one handle those), so an already-rewritten copy is left
+		// alone.
+		if( $pFolder !== '' ) {
+			$folderPath = self::folderStoragePath( $pFolder );
+			$fixed = preg_replace_callback(
+				'/^(\s*SHAPEPATH\s+")(?!\/)([^"]*)(")/mi',
+				function( $m ) use ( $folderPath ) {
+					return $m[1].self::joinFolderPath( $folderPath, $m[2] ).$m[3];
+				},
+				$fixed ?? $content
+			);
+			$fixed = preg_replace_callback(
+				'/^(REFERENCE\b.*?^\s*IMAGE\s+")(?!\/|\.\.\/)([^"]+)(")/msi',
+				function( $m ) use ( $folderPath ) {
+					return $m[1].self::joinFolderPath( $folderPath, $m[2] ).$m[3];
+				},
+				$fixed ?? $content
+			);
+		}
+
+		// CONNECTION (OGR/GeoPackage data sources) has the same cross-site problem: an absolute
+		// path under another site's storage/ tree - a mapfile authored on lsces says
+		// /srv/website/lsces/storage/mapper/osm_iom/iom_osm.gpkg - is read from the current site's
+		// own tree instead. Absolute cross-site form only: a bare or relative CONNECTION
+		// ("iom_osm_2012.gpkg") is resolved by MapServer against SHAPEPATH and is left alone.
+		$fixed = preg_replace_callback(
+			'/^(\s*CONNECTION\s+")\/srv\/website\/[^\/"]+\/storage\/([^"]+)(")/mi',
 			function( $m ) {
 				return $m[1].STORAGE_PKG_PATH.$m[2].$m[3];
 			},
@@ -715,7 +1037,10 @@ class Map extends LibertyMime
 		// EXTENT/SHPPATH/EXCL/OVERVIEWHEIGHT/PROJECTION all live in normal, sort_order>0
 		// display groups (unlike Contact's type-marker items), so they're genuinely in
 		// $this->mXrefInfo once loaded - no need to query Xref directly here.
-		$existingXrefId = $this->mXrefInfo?->findByItem( $pItem )[0] ?? null;
+		// Looked up in the database, not in $this->mXrefInfo: that only holds the rows the current
+		// user's role can see, so for a user outside the items' role it was empty and every save
+		// added a second copy of the record instead of updating the first.
+		$existingXrefId = $this->xrefIdsForItem( $pItem )[0] ?? null;
 		$xrefHash = [
 			'content_id' => $this->mContentId,
 			'item'       => $pItem,
@@ -746,8 +1071,17 @@ class Map extends LibertyMime
 	 *
 	 * @param string $pItem
 	 */
+	/** Every xref row id this map has for one item code, newest first - straight from the database,
+	 * independent of which rows the current user is allowed to see. */
+	private function xrefIdsForItem( string $pItem ): array {
+		return array_map( 'intval', $this->mDb->getCol(
+			"SELECT `xref_id` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = ? ORDER BY `xref_id` DESC",
+			[ $this->mContentId, $pItem ]
+		) ?: [] );
+	}
+
 	private function removeXrefItem( string $pItem ): void {
-		foreach( $this->mXrefInfo?->findByItem( $pItem ) ?? [] as $xrefId ) {
+		foreach( $this->xrefIdsForItem( $pItem ) as $xrefId ) {
 			$stepHash = [ 'xref_id' => $xrefId, 'expunge' => 3 ];
 			$this->stepXref( $stepHash );
 		}

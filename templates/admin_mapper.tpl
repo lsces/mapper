@@ -37,8 +37,72 @@
 		{/jstab}
 
 		{jstab title="Mapper Archive"}
-			<h2>Available Maps</h2>
+			<h2>{tr}Available Maps{/tr}</h2>
 
+			{if $refreshResult}
+				{if $refreshResult.ok}
+					<div class="alert alert-success">{tr}Refreshed from the maps folder:{/tr} {$refreshResult.title|escape}</div>
+				{else}
+					<div class="alert alert-danger">{tr}Could not refresh{/tr} {$refreshResult.title|escape}: {foreach $refreshResult.errors as $error}{$error|escape} {/foreach}</div>
+				{/if}
+			{/if}
+
+			{if !$mapperSettings.maps_dir}
+				<div class="alert alert-warning">{tr}No maps folder is configured for this site, so only maps already loaded are listed. Set one under Mapper Settings (Maps folder).{/tr}</div>
+			{else}
+				<p>{tr}Maps in{/tr} <code>{$mapperSettings.maps_dir|escape}</code> {tr}and the maps already loaded here.{/tr}
+					<a class="btn btn-default btn-sm" href="{$smarty.const.MAPPER_PKG_URL}load_map.php">{tr}Load maps from folder{/tr}</a></p>
+			{/if}
+
+			{if $archiveRows}
+				<form method="post" action="{$smarty.server.SCRIPT_NAME}">
+					<input type="hidden" name="page" value="{$page}" />
+					<table class="table table-condensed">
+						<thead>
+							<tr>
+								<th>{tr}Map{/tr}</th>
+								<th>{tr}Folder file{/tr}</th>
+								<th>{tr}Status{/tr}</th>
+								<th>{tr}Description{/tr}</th>
+								<th>{tr}Folder comment{/tr}</th>
+								<th>{tr}Reference image{/tr}</th>
+								<th>{tr}Folder rule{/tr}</th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody>
+							{foreach $archiveRows as $row}
+								<tr>
+									<td>{if $row.content_id}<a href="{$smarty.const.MAPPER_PKG_URL}view.php?content_id={$row.content_id}">{$row.title|escape}</a>{else}{$row.title|escape}{/if}</td>
+									<td>{if $row.folder_file}<code>{$row.folder_file|escape}</code>{else}<span class="text-muted">-</span>{/if}</td>
+									<td>
+										{if $row.status == 'loaded'}{tr}Loaded{/tr}
+										{elseif $row.status == 'not_loaded'}<a href="{$smarty.const.MAPPER_PKG_URL}load_map.php">{tr}Not loaded{/tr}</a>
+										{else}<span class="text-warning">{tr}Not in folder{/tr}</span>{/if}
+									</td>
+									<td>{if $row.status == 'not_loaded'}<span class="text-muted">-</span>{elseif $row.db_description}{tr}Yes{/tr}{else}<span class="text-warning">{tr}No{/tr}</span>{/if}</td>
+									<td>{if $row.file_description === null}<span class="text-muted">-</span>{elseif $row.file_description}{tr}Yes{/tr}{else}{tr}No{/tr}{/if}</td>
+									<td>
+										{if $row.reference_state == 'ok'}{tr}OK{/tr}
+										{elseif $row.reference_state == 'missing'}<span class="text-danger" title="{$row.reference_path|escape}">{tr}Missing{/tr}</span>
+										{elseif $row.reference_state == 'unknown'}<span class="text-muted" title="{$row.reference_path|escape}">{tr}Relative path{/tr}</span>
+										{else}<span class="text-muted">{tr}None{/tr}</span>{/if}
+									</td>
+									<td>
+										{if $row.folder_issues === null}<span class="text-muted">-</span>
+										{elseif $row.folder_issues}<span class="text-warning" title="{foreach $row.folder_issues as $issue}{$issue|escape}; {/foreach}">{$row.folder_issues|@count} {tr}to fix{/tr}</span>
+										{else}{tr}OK{/tr}{/if}
+									</td>
+									<td>{if $row.content_id && $row.folder_file}<button type="submit" class="btn btn-default btn-xs" name="refresh_map" value="{$row.content_id}" title="{tr}Replace the stored mapfile from its folder{/tr}">{tr}Refresh{/tr}</button>{/if}</td>
+								</tr>
+							{/foreach}
+						</tbody>
+					</table>
+				</form>
+				<p class="help-block">{tr}Description is whether the loaded record has one. Folder comment is whether the .map file carries a DESCRIPTION comment that a fresh load would use. Reference image is checked on the copy the viewer actually uses, so Missing means that map will fail to draw here. Folder rule is whether the folder's mapfile is self-contained: a reference image at tiles/reference.png, and SHAPEPATH and CONNECTION relative to the folder (hover for what needs fixing). Refresh replaces a loaded map's stored mapfile from its folder, keeping the record and description; the layers are re-read, so their queryable flags are reset.{/tr}</p>
+			{else}
+				<p>{tr}No maps found.{/tr}</p>
+			{/if}
 		{/jstab}
 	{/jstabs}
 </div><!-- end mapper -->

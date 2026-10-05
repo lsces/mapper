@@ -49,9 +49,15 @@ function load_map_candidates( string $pBaseDir ): array {
 		}
 		foreach( glob( $pBaseDir.'/'.$entry.'/*.map' ) ?: [] as $mapFilePath ) {
 			$info = $reader->describeMapFile( $mapFilePath );
-			if( isset( $existing[Map::slugify( $info['title'] )] ) ) {
+			$slug = Map::slugify( $info['title'] );
+			// Already loaded - or already offered earlier in this scan: several folders can hold the same
+			// mapfile (the over_gb editions), and offering each one would let a single ticked batch load
+			// that map several times over, since "already loaded" is only decided here, before the batch
+			// runs. First folder wins.
+			if( isset( $existing[$slug] ) ) {
 				continue;
 			}
+			$existing[$slug] = true;
 			$candidates[$entry.'/'.basename( $mapFilePath )] = [
 				'path'        => $entry.'/'.basename( $mapFilePath ),
 				'title'       => $info['title'],
@@ -90,6 +96,8 @@ if( !empty( $_POST['import'] ) && is_array( $_POST['import'] ) ) {
 			'title'           => '',
 			'_files_override' => [ 'map_file' => $fileHash ],
 			'user_id'         => $gBitUser->mUserId,
+			// the folder it came from, so its folder-relative paths and storage link can be set up
+			'folder'          => explode( '/', $path )[0],
 		];
 		if( $map->store( $pParamHash ) ) {
 			$result['created'][] = [ 'path' => $path, 'content_id' => $map->mContentId, 'title' => $map->getTitle() ];

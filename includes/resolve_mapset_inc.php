@@ -101,9 +101,12 @@ function mapper_resolve_mapset( ?int $pContentId, string $pResolvedMapsetKey ): 
 		$shppathRow  = $map->mXrefInfo->findRowByItem( 'SHPPATH' );
 		$exclRow     = $map->mXrefInfo->findRowByItem( 'EXCL' );
 		$overviewRow = $map->mXrefInfo->findRowByItem( 'OVERVIEWHEIGHT' );
+		$folderRow   = $map->mXrefInfo->findRowByItem( 'FOLDER' );
 
 		$extentData = !empty( $extentRow['data'] ) ? json_decode( $extentRow['data'], true ) : null;
-		$shapePath = $shppathRow['data'] ?? null;
+		// the recorded path is whatever the source mapfile said (often another site's storage/ tree) -
+		// check it where it would actually be read from on this site, same rewrite as the stored file
+		$shapePath = isset( $shppathRow['data'] ) ? Map::recordedShapePath( $shppathRow['data'], (string)( $folderRow['xkey'] ?? '' ) ) : null;
 		$exclusive = !$exclRow || $exclRow['xkey'] === '1';
 		$overviewHeight = !empty( $overviewRow['xkey'] ) ? (int)$overviewRow['xkey'] : null;
 

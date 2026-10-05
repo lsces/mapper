@@ -66,7 +66,8 @@ otherwise need an owned table go through generic `liberty_xref` rows instead:
 | xref item | group | storage | meaning |
 |---|---|---|---|
 | `EXTENT` | `general` | `DATA` (JSON blob) | `{minX,minY,maxX,maxY}`, too long for `XKEY` |
-| `SHPPATH` | `general` | `DATA` (blob) | Absolute `SHAPEPATH` from the mapfile, too long for `XKEY` |
+| `SHPPATH` | `general` | `DATA` (blob) | `SHAPEPATH` as the mapfile wrote it — absolute for older maps, folder-relative (`.`, `data`) for maps following the folder rule below; too long for `XKEY` |
+| `FOLDER` | `general` | `XKEY` (short) | The folder of the maps folder this map was loaded from (e.g. `osm_iom_2012`) — template `value`. Lets folder-relative paths be resolved; see *Self-contained map folders* |
 | `EXCL` | `general` | `XKEY` (`'0'`/`'1'`) | Exclusive (radio-button) vs independent (checkbox) layer selection — template `value` |
 | `OVERVIEWHEIGHT` | `general` | `XKEY` (int) | Per-mapset overview-box height override in `display_map2.php`; unset = 150px default — template `value` |
 | `PROJECTION` | `general` | `XKEY` (short) + `XKEY_EXT` (full) | `init=epsg:27700` → `XKEY="epsg:27700"`, full original string in `XKEY_EXT(250)` — template `value` |
@@ -129,7 +130,11 @@ admin setting (no default - blank switches the page off, so set it per site to o
 site should see; one `<name>/<name>.map` per subfolder), lists every map not
 yet imported (a Map with the same slug counts as imported) with its `DESCRIPTION`, and imports the
 ticked ones through the normal `Map::store()` path, at most 10 per submit. The list is re-scanned
-on every request, so it always shows what is still outstanding.
+on every request, so it always shows what is still outstanding. Several folders can hold the same
+mapfile (the `over_gb` editions), so the list offers **one entry per title** (first folder wins) —
+without that, a single ticked batch loads the same map several times over. Each import records the
+map's folder (the `FOLDER` record) and makes sure the site has its `storage/mapper/<folder>` link —
+see *Self-contained map folders*.
 
 ### Cross-server path self-heal (`Map::fixRelativePaths()`)
 
@@ -149,17 +154,71 @@ current one) and rewrites both to the *current* server's `MAPPER_PKG_PATH`. `res
 calls it on every content_id resolve (idempotent, cheap no-op once already correct) — self-heals
 across environment syncs automatically, no manual per-server fixup needed.
 
-**What this does *not* cover**: `SHAPEPATH`, `IMAGEPATH`, and the `wms_onlineresource` WMS metadata
-string are genuinely site-specific — not package assets — so they're deliberately outside this
-regex, and nothing else auto-heals them either. Cloning a site's `Map` attachments to stand up a
-new site (same technique used to build `rdmcloud`, see `mapper/CLAUDE.md`) needs these three
-fixed by hand in every `.map` file, or every real `Map` object silently resolves against the
-*source* site's storage forever — `SHAPEPATH` may still happen to work if the underlying dataset
-directories share the same layout across sites (they did here), but `IMAGEPATH` means classic-CGI
-renders write into the *wrong* site's `storage/maps/`. This went unnoticed for a while because the
-real `Map` resolution path (as opposed to the legacy registry array) had never actually been
-exercised on `rdmcloud` before — nothing surfaces this until someone actually browses a mapset via
-its real content-object URL.
+**What is covered now**: the same call also rewrites an absolute `SHAPEPATH` or `CONNECTION` under
+another site's `storage/` onto the current site's own (`Map::siteStoragePath()`, which also
+corrects a letter-case mismatch in the last folder name), normalises `IMAGEPATH` to the site's
+`storage/maps/`, and resolves folder-relative paths (next section). **Still not covered**: the
+`wms_onlineresource` WMS metadata string is genuinely site-specific and nothing auto-heals it —
+cloning a site's `Map` attachments to stand up a new site needs it fixed by hand in every `.map`
+file, or every real `Map` object silently reports the *source* site's address."
+
+### Self-contained map folders (the folder rule)
+
+A map's folder in the maps folder (`Maps/<name>/`) is meant to hold **everything the map needs**,
+so it can be copied to another machine or site and still work:
+
+- `<name>.map` — the mapfile
+- the data it reads, or links *inside* the folder to shared data (for example `coastline.gpkg`
+  linking to a shared water-polygon file) — so the folder declares what it depends on
+- `tiles/reference.png` — the reference (overview) thumbnail; for tile maps `tiles/` is also the
+  render cache
+- `source/` — the original download, where there is one
+
+The mapfile refers to all of this **relative to its own folder**: `SHAPEPATH "."` or `"data"`,
+`CONNECTION "file.gpkg"`, `REFERENCE` … `IMAGE "tiles/reference.png"`. Package assets (symbols,
+templates, fonts) keep their `../` paths, rewritten to the package as above.
+
+**How it is resolved.** Loading a map from the folder — the load page, or *Refresh* — records the
+folder in the `FOLDER` record, makes sure the site has `storage/mapper/<folder>` (a link to
+`<maps folder>/<folder>`, created automatically from the *Maps folder* setting; an existing link or
+directory is left alone), and rewrites the stored copy's relative `SHAPEPATH` and reference image
+through that link. The link is the one path that reads the same on every machine and every site —
+each machine points it at its own copy of the maps folder — so a stored copy that is synced
+elsewhere still works. `SHPPATH` keeps the relative form, and the viewer's "does the data exist
+here" check anchors it at the same link (`Map::recordedShapePath()`). A relative path with no folder
+recorded is *unknown*, never tested against the process's working directory (which differs
+between `display_map.php` and `html/script.php`).
+
+Maps loaded before the rule have absolute paths. They keep working: another site's `storage/` path
+is rewritten onto the current site's, with the case correction noted above.
+
+**Deliberate exceptions**, shown in the archive tab but not errors: tile maps read their GDAL
+connector from a shared `data` directory (absolute `SHAPEPATH`), and the multi-edition maps
+(`over_gb`, `omlras_gb`) read their editions from sibling folders.
+
+**The Mapper Archive tab** (Mapper admin page) lists every map — the maps folder's files merged with
+the loaded records — one line each: status (loaded / not loaded / not in folder), whether the record
+has a description, whether the folder mapfile carries a `DESCRIPTION` comment, whether the reference
+image exists *on the copy the viewer uses*, and a **Folder rule** column listing what in the folder
+mapfile breaks the rule. **Refresh** replaces a loaded map's stored mapfile from its folder, keeping
+the record, its description and its permissions (layers are re-read, so per-layer queryable flags
+reset). A `.map` left in another folder under the same title (an old copy) is matched first if its
+folder name sorts earlier — keep stale copies out of the maps folder (rename them to `.stale`).
+
+**Operational notes**
+- `FOLDER` must be registered as a record type on each site's database. A new install gets it from
+  `admin/schema_inc.php`; an existing database needs one row, or the app never loads the record:
+
+      INSERT INTO liberty_xref_item (item, content_type_guid, x_group, cross_ref_title, multiple,
+        role_id, cross_ref_href, template, data)
+      VALUES ('FOLDER', 'mapper', 'general', 'Maps Folder', 0, 3, '', 'value', NULL);
+
+- Records are only loaded for users whose role may see the item's group, so `$this->mXrefInfo` can be
+  empty for an account outside that role (the `root` login, a command-line script). Saving through
+  it used to add a second copy of every record. `upsertSingleXref()` and `removeXrefItem()` therefore
+  look rows up directly in the database (`xrefIdsForItem()`).
+- Do not exercise a write path (a Refresh, an import) from a command-line script or as a user outside
+  that role: use the web page as a normal admin account.
 
 ### `Map::expunge()`
 
@@ -332,6 +391,9 @@ ever runs.
   parallel-viewable exclusive layers (`over_gb`, `omlras_gb` — same pattern as `iom_years`' year
   sheets) carries a copy in each edition's own folder, since each edition is independently a real
   map in its own right and the combined mapfile is just one way of viewing them together.
+  A `storage/mapper/<folder>` link must point at the **root** of its maps-folder folder (an older
+  link pointing at a `data` subfolder, or at a shared data directory, breaks the folder rule —
+  see *Self-contained map folders*); new ones are created automatically when a map is loaded.
 - **`storage/maps/`** — MapServer's own generated CGI output (`IMAGEPATH`/`IMAGEURL`) for the
   classic frameset path. *Is* served by nginx. Each render is a uniquely-named, never-revisited
   file — `/etc/webstack/cron.daily/mapper-maps-cleanup` deletes anything older than 2 days.
