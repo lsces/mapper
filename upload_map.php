@@ -58,7 +58,9 @@ if( !empty( $_FILES['map_file']['name'] ) ) {
 		$map = new Map();
 		$pParamHash = [
 			'title'            => $_REQUEST['title'] ?? '',
-			'data'             => $_REQUEST['data'] ?? '',
+			// 'edit', not 'data' - LibertyContent::verify() only reads 'edit', so 'data' here
+			// silently dropped the description typed on this form.
+			'edit'             => $_REQUEST['data'] ?? '',
 			'_files_override'  => [ 'map_file' => $_FILES['map_file'] ],
 			'user_id'          => $gBitUser->mUserId,
 		];

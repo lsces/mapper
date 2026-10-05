@@ -10,7 +10,7 @@
 	</div>
 {/form}
 
-<table class="table data">
+<table class="table table-striped">
 	<caption>{tr}Available Maps{/tr}</caption>
 	<tr>
 		<th>{smartlink ititle="Title" isort=title page=$page user_id=$user_id idefault=1}</th>
@@ -20,7 +20,7 @@
 		<th>&nbsp;</th>
 	</tr>
 	{foreach from=$contentList item=item}
-		<tr class="{cycle values='odd,even'}">
+		<tr>
 			<td>
 				{* Quick-launch icons ahead of the metadata/view.php link - "map" (classic
 				MapServer frameset, display_map.php) and "map2" (Leaflet viewer,
@@ -38,5 +38,5 @@
 	{/foreach}
 </table>
 
-{libertypagination numPages=$numPages page=$curPage sort_mode=$sort_mode content_type=$contentSelect user_id=$user_id}
+{pagination}
 {/strip}

@@ -14,6 +14,13 @@
 					{/forminput}
 				</div>
 
+				<div class="form-group">
+					{formlabel label="Maps folder" for="maps_dir"}
+					{forminput}
+						<input type="text" name="maps_dir" id="maps_dir" size="50" value="{$mapperSettings.maps_dir|escape}" />
+						{formhelp note="Folder holding one subfolder per map, each with its .map file. 'Load maps from folder' lists the ones not yet imported."}
+					{/forminput}
+				</div>
 
 				<div class="form-group">
 					{formlabel label="Automatic XY Tracker" for="autotrack"}

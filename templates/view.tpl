@@ -13,8 +13,8 @@
 		<h1>{$gContent->getTitle()|escape}</h1>
 	</div>
 	<div class="body">
-		{if $gContent->mInfo.data}
-			<p>{$gContent->mInfo.data|escape}</p>
+		{if $gContent->mInfo.parsed_data}
+			<div class="description">{$gContent->mInfo.parsed_data}</div>
 		{/if}
 
 		<div class="form-group">

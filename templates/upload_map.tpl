@@ -6,6 +6,7 @@
 		<h1>{tr}Upload Map{/tr}</h1>
 	</div>
 	<div class="body">
+		<p><a href="{$smarty.const.MAPPER_PKG_URL}load_map.php">{tr}Load maps from the maps folder instead{/tr}</a></p>
 		{if $errors}
 			<div class="alert alert-danger">
 				<ul>

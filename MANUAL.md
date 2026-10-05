@@ -111,8 +111,24 @@ wins if present; otherwise, on a brand new object with no existing `EXCL` row, i
 exclusive (pick-one-of-several-editions) mapsets need the comment explicitly; as of writing that's
 `iom_years`, `minisc_2019`/`_2026`, `omlras_gb`, `over_gb`.
 
+**The `# MAPPER: DESCRIPTION=...` comment convention** — same idea for the description, so it lives
+with the mapfile and survives a rebuild of the library. One comment line per paragraph, plain text
+(escaped and wrapped in `<p>` when stored, so no HTML is needed):
+
+    # MAPPER: DESCRIPTION=Isle of Man base map from OpenStreetMap, openstreetmap-carto style.
+    # MAPPER: DESCRIPTION=Pre-rendered tiles, zoom 6-18, covering the whole island.
+
+It fills the description only when none was supplied: a description typed on the upload or edit
+form wins, and "Reload from disk" fills a blank description but never overwrites an edited one.
+
 **Batch archive upload** (`upload_map.php`'s zip/tar.gz path, via `mapper_process_archive()`) —
 one `Map` object per `.map` file found at the archive's top level, flat loop, no nesting.
+
+**Load maps from folder** (`load_map.php`, linked from the upload page) — scans the *Maps folder*
+admin setting (default `/media3/Maps`, one `<name>/<name>.map` per subfolder), lists every map not
+yet imported (a Map with the same slug counts as imported) with its `DESCRIPTION`, and imports the
+ticked ones through the normal `Map::store()` path, at most 10 per submit. The list is re-scanned
+on every request, so it always shows what is still outstanding.
 
 ### Cross-server path self-heal (`Map::fixRelativePaths()`)
 

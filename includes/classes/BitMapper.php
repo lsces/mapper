@@ -44,6 +44,10 @@ class BitMapper extends LibertyMime
 			$pParamHash['setting_store']['font'] = $pParamHash['font'];
 		}
 
+		if( !empty( $pParamHash['maps_dir'] ) && ( rtrim( $pParamHash['maps_dir'], '/' ) != $defaults['maps_dir'] ) ) {
+			$pParamHash['setting_store']['maps_dir'] = rtrim( $pParamHash['maps_dir'], '/' );
+		}
+
 		if( isset( $pParamHash['autotrack'] ) ) {
 			$pParamHash['setting_store']['autotrack'] = $pParamHash['autotrack'];
 		}
@@ -65,7 +69,9 @@ class BitMapper extends LibertyMime
 
 	function getDefaultSettings() {
 		return( array(	"font" => "LuxiSerif.afm",
-						"autotrack" => 'off'
+						"autotrack" => 'off',
+						// folder of per-map subfolders (<name>/<name>.map) that load_map.php scans
+						"maps_dir" => '/media3/Maps'
 			) );
 	}
 }

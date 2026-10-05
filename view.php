@@ -30,6 +30,9 @@ $gContent->addHit();
 $gBitSmarty->assign( 'gContent', $gContent );
 
 $gContent->loadXrefInfo();
+// Populates mInfo['parsed_data'] via the content's own format plugin (bithtml for maps saved
+// from the edit page), so the description renders as HTML instead of showing its stored tags.
+$gContent->getParsedData();
 $gBitSmarty->assign( 'gXrefInfo', $gContent->mXrefInfo );
 
 $gBitSystem->setBrowserTitle( 'Map: '.$gContent->getTitle() );

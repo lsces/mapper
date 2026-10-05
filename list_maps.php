@@ -20,6 +20,8 @@ include_once( MAPPER_PKG_INCLUDE_PATH.'get_map_list_inc.php' );
 $gBitSmarty->assign( 'contentSelect', $contentSelect );
 $gBitSmarty->assign( 'contentTypes', $contentTypes );
 $gBitSmarty->assign( 'contentList', $contentList );
+// built by getContentList() via postGetList(); rendered by {pagination} in list_map_inc.tpl
+$gBitSmarty->assign( 'listInfo', $pListHash['listInfo'] ?? null );
 
 $gBitSystem->setBrowserTitle( 'List Map Archive' );
 $gBitSystem->display( 'bitpackage:mapper/list_maps.tpl' , NULL, array( 'display_mode' => 'list' ));

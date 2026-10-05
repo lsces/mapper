@@ -260,18 +260,20 @@ class Map extends LibertyMime
 			? $this->parseMapFile( $upload['tmp_name'] )
 			: null;
 
-		if( $parsed && empty( $pParamHash['title'] ) ) {
+		if( $parsed && empty( $pParamHash['title'] ) && ( !empty( $parsed['name'] ) || !empty( $upload['name'] ) ) ) {
 			// "Demo" is a real, pre-existing leftover in several already-deployed private
 			// mapfiles (copy-paste template artifact, not something this parser invented -
-			// confirmed against the actual files) - falls back to the uploaded filename
-			// (without extension) instead of propagating a meaningless shared title into
-			// every object that happens to still carry it.
-			$name = $parsed['name'];
-			if( !empty( $name ) && strtolower( $name ) !== 'demo' ) {
-				$pParamHash['title'] = $name;
-			} elseif( !empty( $upload['name'] ) ) {
-				$pParamHash['title'] = pathinfo( $upload['name'], PATHINFO_FILENAME );
-			}
+			// confirmed against the actual files) - titleFromMapFile() falls back to the
+			// uploaded filename (without extension) instead of propagating a meaningless shared
+			// title into every object that happens to still carry it.
+			$pParamHash['title'] = self::titleFromMapFile( $parsed['name'], (string)( $upload['name'] ?? '' ) );
+		}
+
+		// The mapfile's own "# MAPPER: DESCRIPTION=" comment fills the description only when none
+		// was supplied - a description typed on the form (key 'edit', not 'data' - see
+		// LibertyContent::verify()) always wins.
+		if( $parsed && !empty( $parsed['description'] ) && trim( (string)( $pParamHash['edit'] ?? '' ) ) === '' ) {
+			$pParamHash['edit'] = $parsed['description'];
 		}
 
 		$this->StartTrans();
@@ -323,6 +325,16 @@ class Map extends LibertyMime
 			return false;
 		}
 		$parsed = $this->parseMapFile( $sourceFile );
+
+		// Fill a blank description from the file's DESCRIPTION comment - never overwrite one that
+		// has been set or edited since.
+		if( !empty( $parsed['description'] ) && trim( (string)( $this->mInfo['data'] ?? '' ) ) === '' ) {
+			$descriptionHash = [ 'content_id' => $this->mContentId, 'title' => $this->getTitle(), 'edit' => $parsed['description'] ];
+			if( !$this->store( $descriptionHash ) ) {
+				return false;
+			}
+		}
+
 		$this->StartTrans();
 		$this->storeParsedMapFileDetails( $parsed, [ 'content_id' => $this->mContentId ] );
 		$this->CompleteTrans();
@@ -341,10 +353,11 @@ class Map extends LibertyMime
 	private function parseMapFile( string $pSourceFile ): array {
 		$lines = file( $pSourceFile, FILE_IGNORE_NEW_LINES );
 		if( !$lines ) {
-			return [ 'name' => null, 'extent' => null, 'shapePath' => null, 'excl' => null, 'projection' => null, 'layers' => [] ];
+			return [ 'name' => null, 'extent' => null, 'shapePath' => null, 'excl' => null, 'projection' => null, 'description' => null, 'layers' => [] ];
 		}
 
 		$name = $extent = $shapePath = $excl = $projection = null;
+		$descriptionLines = [];
 		$layers = [];
 		$depth = 0;
 		$inLayer = false;
@@ -365,6 +378,13 @@ class Map extends LibertyMime
 				// value across a whole batch-archive import - see mapper/CLAUDE.md).
 				if( $excl === null && preg_match( '/^#\s*MAPPER:\s*EXCL\s*=\s*(true|false|1|0)\s*$/i', $trim, $m ) ) {
 					$excl = in_array( strtolower( $m[1] ), [ 'true', '1' ], true );
+				}
+				// Same convention for the description, so it lives with the mapfile itself and
+				// survives a rebuild of the mapper library. One "# MAPPER: DESCRIPTION=" line per
+				// paragraph, plain text (escaped and wrapped in <p> when stored, see
+				// descriptionToHtml()).
+				if( preg_match( '/^#\s*MAPPER:\s*DESCRIPTION\s*=\s*(.*?)\s*$/i', $trim, $m ) && $m[1] !== '' ) {
+					$descriptionLines[] = $m[1];
 				}
 				continue;
 			}
@@ -436,7 +456,42 @@ class Map extends LibertyMime
 			}
 		}
 
-		return [ 'name' => $name, 'extent' => $extent, 'shapePath' => $shapePath, 'excl' => $excl, 'projection' => $projection, 'layers' => $layers ];
+		return [ 'name' => $name, 'extent' => $extent, 'shapePath' => $shapePath, 'excl' => $excl, 'projection' => $projection, 'description' => self::descriptionToHtml( $descriptionLines ), 'layers' => $layers ];
+	}
+
+	/**
+	 * Plain-text DESCRIPTION comment lines to the HTML the bithtml format stores - one <p> per
+	 * line, escaped, so nobody has to hand-write tags in a mapfile comment. Null when there are
+	 * none.
+	 */
+	private static function descriptionToHtml( array $pLines ): ?string {
+		if( !$pLines ) {
+			return null;
+		}
+		return implode( "\n", array_map( fn( $line ) => '<p>'.htmlspecialchars( $line, ENT_QUOTES ).'</p>', $pLines ) );
+	}
+
+	/**
+	 * Title a mapfile gets when imported: its own NAME, unless that is the meaningless "Demo"
+	 * copy-paste leftover (see store()), then the filename without extension.
+	 */
+	private static function titleFromMapFile( ?string $pName, string $pFilename ): string {
+		if( !empty( $pName ) && strtolower( $pName ) !== 'demo' ) {
+			return $pName;
+		}
+		return pathinfo( $pFilename, PATHINFO_FILENAME );
+	}
+
+	/**
+	 * What importing this mapfile would create - its title and DESCRIPTION comment (HTML or
+	 * null) - for load_map.php's list of not-yet-imported maps. Pure read, no side effects.
+	 */
+	public function describeMapFile( string $pSourceFile ): array {
+		$parsed = $this->parseMapFile( $pSourceFile );
+		return [
+			'title'       => self::titleFromMapFile( $parsed['name'], basename( $pSourceFile ) ),
+			'description' => $parsed['description'],
+		];
 	}
 
 	/** Write the already-parsed details (see parseMapFile()) into the xref tables and retag the

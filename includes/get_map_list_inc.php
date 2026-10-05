@@ -24,12 +24,18 @@ $contentSelect = MAPPER_CONTENT_TYPE_GUID;
 // get_content_list_inc doesn't use $_REQUEST parameters as it might not be the only list in the page that needs sorting and limiting
 $pListHash = [
 	'content_type_guid' => $contentSelect,
-	'offset'            => isset( $offset_content ) ? $offset_content : 0,
-	'max_records'       => isset( $max_content ) ? $max_content : 500,
+	// prepGetList() turns 'page' into the offset (and postGetList() builds the 'listInfo' that
+	// {pagination} renders) - 'offset' is only forced if a caller set $offset_content.
+	'page'              => ( isset( $_REQUEST['page'] ) && is_numeric( $_REQUEST['page'] ) && $_REQUEST['page'] > 0 ) ? (int)$_REQUEST['page'] : 1,
+	'max_records'       => isset( $max_content ) ? $max_content : 10,
 	'sort_mode'         => isset( $content_sort_mode ) ? $content_sort_mode : 'title_asc',
-	'find'              => empty( $_REQUEST["find_objects"] ) ? NULL : $_REQUEST["find_objects"],
+	// The filter box posts 'find_objects'; {pagination}'s own page links carry it as 'find'.
+	'find'              => !empty( $_REQUEST["find_objects"] ) ? $_REQUEST["find_objects"] : ( !empty( $_REQUEST["find"] ) ? $_REQUEST["find"] : NULL ),
 	'user_id'           => isset( $_REQUEST['user_id'] ) ? $_REQUEST['user_id'] : NULL,
 ];
+if( isset( $offset_content ) ) {
+	$pListHash['offset'] = $offset_content;
+}
 $contentList = $gContent->getContentList( $pListHash );
 
 // getContentList() is LibertyContent's own generic, independent query-builder - it does not
