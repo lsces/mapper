@@ -27,6 +27,9 @@
 			<div class="alert alert-warning">{tr}{$result.skipped} more were ticked than the batch limit and were left for the next go.{/tr}</div>
 		{/if}
 
+		{if !$baseDir}
+			<div class="alert alert-warning">{tr}No maps folder is configured for this site, so nothing is listed. Set one in the mapper admin settings (Maps folder).{/tr}</div>
+		{/if}
 		<p>
 			{tr}Maps in{/tr} <code>{$baseDir|escape}</code> {tr}that have not been imported yet.{/tr}
 			{if $outstanding > $batchSize}{tr}Showing the first{/tr} {$batchSize} {tr}of{/tr} {$outstanding} {tr}outstanding - import these and the next batch appears.{/tr}{/if}

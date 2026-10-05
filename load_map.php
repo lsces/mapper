@@ -30,6 +30,9 @@ $baseDir = rtrim( $mapper->mSettings['maps_dir'], '/' );
  */
 function load_map_candidates( string $pBaseDir ): array {
 	global $gBitDb;
+	if( $pBaseDir === '' ) {
+		return []; // no folder configured for this site - nothing is scanned
+	}
 	// Instantiating Map first is what loads Map.php, which define()s MAPPER_CONTENT_TYPE_GUID.
 	$reader = new Map();
 	$existing = [];

@@ -125,7 +125,8 @@ form wins, and "Reload from disk" fills a blank description but never overwrites
 one `Map` object per `.map` file found at the archive's top level, flat loop, no nesting.
 
 **Load maps from folder** (`load_map.php`, linked from the upload page) — scans the *Maps folder*
-admin setting (default `/media3/Maps`, one `<name>/<name>.map` per subfolder), lists every map not
+admin setting (no default - blank switches the page off, so set it per site to only the maps that
+site should see; one `<name>/<name>.map` per subfolder), lists every map not
 yet imported (a Map with the same slug counts as imported) with its `DESCRIPTION`, and imports the
 ticked ones through the normal `Map::store()` path, at most 10 per submit. The list is re-scanned
 on every request, so it always shows what is still outstanding.

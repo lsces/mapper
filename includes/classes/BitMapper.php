@@ -70,8 +70,10 @@ class BitMapper extends LibertyMime
 	function getDefaultSettings() {
 		return( array(	"font" => "LuxiSerif.afm",
 						"autotrack" => 'off',
-						// folder of per-map subfolders (<name>/<name>.map) that load_map.php scans
-						"maps_dir" => '/media3/Maps'
+						// folder of per-map subfolders (<name>/<name>.map) that load_map.php scans.
+						// Empty means the page is off until a site sets its own - a wider default
+						// would expose whatever the host happens to have mounted.
+						"maps_dir" => ''
 			) );
 	}
 }
