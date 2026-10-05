@@ -1,6 +1,20 @@
 {strip}
 
 <div class="mapper">
+	{if $refreshResult}
+		{if $refreshResult.ok}
+			<div class="alert alert-success">{tr}Refreshed from the maps folder:{/tr} {$refreshResult.title|escape}</div>
+		{else}
+			<div class="alert alert-danger">{tr}Could not refresh{/tr} {$refreshResult.title|escape}: {foreach $refreshResult.errors as $error}{$error|escape} {/foreach}</div>
+		{/if}
+	{/if}
+
+	{if $refreshAllResult}
+		<div class="alert alert-{if $refreshAllResult.failed}warning{else}success{/if}">
+			{tr}Refreshed from the maps folder:{/tr} {$refreshAllResult.done|@count}{if $refreshAllResult.failed}; {tr}could not refresh:{/tr} {foreach $refreshAllResult.failed as $title}{$title|escape} {/foreach}{/if}
+		</div>
+	{/if}
+
 	{jstabs}
 		{jstab title="Mapper Settings"}
 			{form legend="Mapper Settings"}
@@ -38,20 +52,6 @@
 
 		{jstab title="Mapper Archive"}
 			<h2>{tr}Available Maps{/tr}</h2>
-
-			{if $refreshResult}
-				{if $refreshResult.ok}
-					<div class="alert alert-success">{tr}Refreshed from the maps folder:{/tr} {$refreshResult.title|escape}</div>
-				{else}
-					<div class="alert alert-danger">{tr}Could not refresh{/tr} {$refreshResult.title|escape}: {foreach $refreshResult.errors as $error}{$error|escape} {/foreach}</div>
-				{/if}
-			{/if}
-
-			{if $refreshAllResult}
-				<div class="alert alert-{if $refreshAllResult.failed}warning{else}success{/if}">
-					{tr}Refreshed from the maps folder:{/tr} {$refreshAllResult.done|@count}{if $refreshAllResult.failed}; {tr}could not refresh:{/tr} {foreach $refreshAllResult.failed as $title}{$title|escape} {/foreach}{/if}
-				</div>
-			{/if}
 
 			{if !$mapperSettings.maps_dir}
 				<div class="alert alert-warning">{tr}No maps folder is configured for this site, so only maps already loaded are listed. Set one under Mapper Settings (Maps folder).{/tr}</div>
