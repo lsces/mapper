@@ -47,11 +47,21 @@
 				{/if}
 			{/if}
 
+			{if $refreshAllResult}
+				<div class="alert alert-{if $refreshAllResult.failed}warning{else}success{/if}">
+					{tr}Refreshed from the maps folder:{/tr} {$refreshAllResult.done|@count}{if $refreshAllResult.failed}; {tr}could not refresh:{/tr} {foreach $refreshAllResult.failed as $title}{$title|escape} {/foreach}{/if}
+				</div>
+			{/if}
+
 			{if !$mapperSettings.maps_dir}
 				<div class="alert alert-warning">{tr}No maps folder is configured for this site, so only maps already loaded are listed. Set one under Mapper Settings (Maps folder).{/tr}</div>
 			{else}
 				<p>{tr}Maps in{/tr} <code>{$mapperSettings.maps_dir|escape}</code> {tr}and the maps already loaded here.{/tr}
-					<a class="btn btn-default btn-sm" href="{$smarty.const.MAPPER_PKG_URL}load_map.php">{tr}Load maps from folder{/tr}</a></p>
+					<a class="btn btn-default btn-sm" href="{$smarty.const.MAPPER_PKG_URL}load_map.php">{tr}Load maps from folder{/tr}</a>
+					<form method="post" action="{$smarty.server.SCRIPT_NAME}" style="display:inline">
+						<input type="hidden" name="page" value="{$page}" />
+						<button type="submit" class="btn btn-default btn-sm" name="refresh_all" value="1" onclick="return confirm('{tr}Replace the stored mapfile of every loaded map from its folder? Layers are re-read, so per-layer queryable flags are reset.{/tr}');">{tr}Refresh all from folder{/tr}</button>
+					</form></p>
 			{/if}
 
 			{if $archiveRows}

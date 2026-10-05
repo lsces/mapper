@@ -924,8 +924,7 @@ class Map extends LibertyMime
 		// otherwise read from the FOLDER record (every later resolve). Empty for a map loaded before
 		// folders were recorded, which keeps the older absolute-path handling below.
 		if( $pFolder === null ) {
-			$folderRow = $this->mXrefInfo?->findRowByItem( 'FOLDER' );
-			$pFolder = (string)( $folderRow['xkey'] ?? '' );
+			$pFolder = $this->recordedFolder();
 		}
 		$fixed = preg_replace_callback(
 			'/^(\s*(?:SYMBOLSET|FONTSET|TEMPLATE|HEADER|FOOTER|EMPTY|IMAGE)\s+")(?:\.\.\/|\/srv\/website\/[^\/"]+\/mapper\/)([^"]+)(")/mi',
@@ -1071,6 +1070,22 @@ class Map extends LibertyMime
 	 *
 	 * @param string $pItem
 	 */
+	/**
+	 * The folder of the maps folder this map was loaded from (its FOLDER record), or '' for a map
+	 * loaded before folders were recorded. Read straight from the database - not through
+	 * $this->mXrefInfo, which only holds the rows the current user's role can see - so every user, and
+	 * every machine's copy of the same data, gets the same answer. This is what makes a map's on-demand
+	 * tile cache land in the same Maps/<folder>/tiles on every machine and for every viewer.
+	 */
+	public function recordedFolder(): string {
+		$folders = $this->mDb->getCol(
+			"SELECT `xkey` FROM `".BIT_DB_PREFIX."liberty_xref` WHERE `content_id` = ? AND `item` = 'FOLDER' ORDER BY `xref_id` DESC",
+			[ $this->mContentId ]
+		) ?: [];
+		$folder = trim( (string)( $folders[0] ?? '' ) );
+		return preg_match( '/^[A-Za-z0-9._-]+$/', $folder ) ? $folder : '';
+	}
+
 	/** Every xref row id this map has for one item code, newest first - straight from the database,
 	 * independent of which rows the current user is allowed to see. */
 	private function xrefIdsForItem( string $pItem ): array {

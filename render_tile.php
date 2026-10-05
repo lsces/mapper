@@ -72,7 +72,13 @@ if( !$allowed ) {
 // that file's own doc comment for the full reasoning).
 const MAPS_DIR = '/srv/website/rdm/maps';
 
-$cacheDir = MAPS_DIR.'/'.$rawMapset.'/tiles/'.$rawLayer.'/'.$z.'/'.$x;
+// The cache lives in the map's own folder - Maps/<folder>/tiles/<layer>/... - not in a second folder
+// named after the title (which is what $rawMapset is): the title-named folder was a different name
+// from the data folder on almost every map, so each machine grew its own set of stray cache-only
+// folders and tiles cached on one machine were never found on another. A map loaded before folders
+// were recorded (no FOLDER record) keeps the title-named folder until it is refreshed.
+$cacheFolder = $map ? $map->recordedFolder() : '';
+$cacheDir = MAPS_DIR.'/'.( $cacheFolder !== '' ? $cacheFolder : $rawMapset ).'/tiles/'.$rawLayer.'/'.$z.'/'.$x;
 $cacheFile = $cacheDir.'/'.$y.'.png';
 
 if( !is_file( $cacheFile ) ) {

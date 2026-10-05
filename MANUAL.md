@@ -202,7 +202,8 @@ has a description, whether the folder mapfile carries a `DESCRIPTION` comment, w
 image exists *on the copy the viewer uses*, and a **Folder rule** column listing what in the folder
 mapfile breaks the rule. **Refresh** replaces a loaded map's stored mapfile from its folder, keeping
 the record, its description and its permissions (layers are re-read, so per-layer queryable flags
-reset). A `.map` left in another folder under the same title (an old copy) is matched first if its
+reset). **Refresh all from folder** (confirm-guarded) does that for every loaded map that has a mapfile
+in the folder in one go — which also gives each map its `FOLDER` record, the key its tile cache lives under. A `.map` left in another folder under the same title (an old copy) is matched first if its
 folder name sorts earlier — keep stale copies out of the maps folder (rename them to `.stale`).
 
 **Operational notes**
@@ -329,7 +330,10 @@ tile-grid math, invokes `/usr/bin/mapserv` directly via `proc_open()` (as a plai
 `REQUEST_METHOD=GET`/`QUERY_STRING` env vars — same technique as the documented `mode=browse`
 manual-testing recipe below) with an explicit WMS 1.1.1 `GetMap` request, and — only if the
 response's `Content-Type` genuinely starts `image/` (never cache an error page/XML exception as if
-it were a tile) — writes the raw PNG bytes to `Maps/<mapset>/tiles/<layer>/<z>/<x>/<y>.png`. If
+it were a tile) — writes the raw PNG bytes to `Maps/<folder>/tiles/<layer>/<z>/<x>/<y>.png`, where `<folder>` is the map's
+recorded folder (its `FOLDER` record — see *Self-contained map folders*), so the cache sits inside the map's
+own folder and is the same path on every machine. A map with no recorded folder (loaded before folders were
+recorded) falls back to the title slug until it is refreshed. If
 that still doesn't produce a real file (genuine render failure, or a legitimate no-data
 coordinate — can't cleanly tell those apart from mapserv's output alone), returns **404, not
 502** — a 502 means "upstream is down", which this isn't; 404 matches `tile.php`'s own convention
@@ -494,8 +498,10 @@ Liberty attachment storage, not the `mapper/` package tree) can be handed straig
 - `overviewHeight` currently only has a numeric-pixel form; no per-mapset aspect-ratio or
   auto-fit alternative.
 - A legacy registry mapset's `mapper_mapsets.php` key and its `Maps/<name>/` archive folder name
-  are independent naming spaces with nothing keeping them in sync — the on-demand tile cache is
-  keyed off the resolved mapset key, not the archive folder name, so a mismatch between the two
-  silently creates a second, orphaned cache folder rather than erroring. Only affects mapsets
-  still reached via the legacy registry; a real `Map`'s slug is derived from its title, so title
-  and archive folder naturally stay in step (see Naming convention above).
+  are independent naming spaces with nothing keeping them in sync, so a mismatch silently creates a
+  second, orphaned cache folder. A real `Map` used to have the same problem — its cache was keyed on the
+  title slug, which differs from the data folder's (dataset-derived) name on almost every map, so each
+  machine grew a second cache-only folder next to the real one and tiles cached on one machine were never
+  found on another. A `Map` with a recorded folder now caches inside that folder; one without (not yet
+  refreshed) still uses the title slug. Existing title-named caches are moved across with
+  `ops/mapper-cache-to-folders.py` (private notes repo), after *Refresh all* has given every map a folder.
