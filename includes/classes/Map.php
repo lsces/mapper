@@ -430,7 +430,7 @@ class Map extends LibertyMime
 				if( $keyword === 'LAYER' && !$inLayer ) {
 					$inLayer = true;
 					$layerDepth = $depth;
-					$currentLayer = [ 'name' => null, 'type' => null, 'status' => null, 'group' => null, 'data' => null ];
+					$currentLayer = [ 'name' => null, 'type' => null, 'status' => null, 'group' => null, 'data' => null, 'tileindex' => null ];
 				} elseif( $keyword === 'PROJECTION' && !$inLayer && $projection === null ) {
 					$inProjection = true;
 					$projectionDepth = $depth;
@@ -460,6 +460,8 @@ class Map extends LibertyMime
 					// display_map2.php's content_id resolution path.
 					case 'DATA':   $currentLayer['data']   = $value; break;
 					case 'CONNECTION': $connections[] = $value; break;
+					// a raster layer built from a shapefile index of tiles - only noted (not stored with the layer)
+					case 'TILEINDEX': $currentLayer['tileindex'] = $value; break;
 				}
 			} elseif( $inReference && $depth === $referenceDepth ) {
 				if( $referenceImage === null && $keyword === 'IMAGE' ) { $referenceImage = $value; }
@@ -508,7 +510,27 @@ class Map extends LibertyMime
 			'referenceImage' => $parsed['referenceImage'],
 			'shapePath'      => $parsed['shapePath'],
 			'connections'    => $parsed['connections'],
+			'layerData'      => array_merge( array_column( $parsed['layers'], 'data' ), array_column( $parsed['layers'], 'tileindex' ) ),
 		];
+	}
+
+	/**
+	 * The two accepted exceptions to "SHAPEPATH is relative to the folder", or null: a *tile connector*
+	 * map (every layer's DATA is a GDAL tile connector, which lives in a shared per-machine directory
+	 * because its tile URL differs by machine) and a *multi-edition* map (reads its editions from
+	 * sibling folders under the site's storage/mapper root). Shown as a note in the archive tab, not as
+	 * something to fix.
+	 */
+	public static function folderException( array $pInfo ): ?string {
+		$data = array_filter( $pInfo['layerData'] ?? [] );
+		$shape = (string)( $pInfo['shapePath'] ?? '' );
+		if( $data && count( array_filter( $data, fn( $d ) => preg_match( '/_gdalwms\.xml$/i', (string)$d ) ) ) === count( $data ) ) {
+			return 'tile connector';
+		}
+		if( preg_match( '#^/srv/website/[^/]+/storage/mapper/?$#', $shape ) && array_filter( $data, fn( $d ) => str_contains( (string)$d, '/' ) ) ) {
+			return 'multi-edition';
+		}
+		return null;
 	}
 
 	/**
@@ -528,7 +550,9 @@ class Map extends LibertyMime
 			$issues[] = 'tiles/reference.png is missing';
 		}
 		$shape = $pInfo['shapePath'] ?? null;
-		if( $shape !== null && str_starts_with( $shape, '/srv/website/' ) ) {
+		if( self::folderException( $pInfo ) !== null ) {
+			// an accepted exception - see folderException(); not something to fix
+		} elseif( $shape !== null && str_starts_with( $shape, '/srv/website/' ) ) {
 			$issues[] = 'SHAPEPATH is a site path';
 		} elseif( $shape !== null && str_starts_with( $shape, '/' ) ) {
 			$issues[] = 'SHAPEPATH is outside the folder';
@@ -635,6 +659,7 @@ class Map extends LibertyMime
 				'db_description'   => trim( strip_tags( (string)( $map->mInfo['data'] ?? '' ) ) ) !== '',
 				'file_description' => null,
 				'folder_issues'    => null,
+				'folder_note'      => null,
 				'reference_path'   => $info['referenceImage'] ?? null,
 			];
 		}
@@ -654,6 +679,7 @@ class Map extends LibertyMime
 						$rows[$slug]['folder_file'] = $relative;
 						$rows[$slug]['file_description'] = !empty( $info['description'] );
 						$rows[$slug]['folder_issues'] = self::folderIssues( $info, $pBaseDir.'/'.$entry );
+						$rows[$slug]['folder_note'] = self::folderException( $info );
 						if( $rows[$slug]['status'] === 'not_in_folder' ) {
 							$rows[$slug]['status'] = 'loaded';
 						}
@@ -669,6 +695,7 @@ class Map extends LibertyMime
 					'file_description' => !empty( $info['description'] ),
 					'reference_path'   => $info['referenceImage'],
 					'folder_issues'    => self::folderIssues( $info, $pBaseDir.'/'.$entry ),
+					'folder_note'      => self::folderException( $info ),
 				];
 			}
 		}

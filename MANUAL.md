@@ -192,7 +192,7 @@ between `display_map.php` and `html/script.php`).
 Maps loaded before the rule have absolute paths. They keep working: another site's `storage/` path
 is rewritten onto the current site's, with the case correction noted above.
 
-**Deliberate exceptions**, shown in the archive tab but not errors: tile maps read their GDAL
+**Deliberate exceptions**, shown in the archive tab as `OK (tile connector)` / `OK (multi-edition)` rather than "to fix" (`Map::folderException()`): tile maps read their GDAL
 connector from a shared `data` directory (absolute `SHAPEPATH`), and the multi-edition maps
 (`over_gb`, `omlras_gb`) read their editions from sibling folders.
 

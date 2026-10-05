@@ -101,6 +101,7 @@
 									<td>
 										{if $row.folder_issues === null}<span class="text-muted">-</span>
 										{elseif $row.folder_issues}<span class="text-warning" title="{foreach $row.folder_issues as $issue}{$issue|escape}; {/foreach}">{$row.folder_issues|@count} {tr}to fix{/tr}</span>
+										{elseif $row.folder_note}<span class="text-muted" title="{tr}An accepted exception to the folder rule{/tr}">{tr}OK{/tr} ({$row.folder_note|escape})</span>
 										{else}{tr}OK{/tr}{/if}
 									</td>
 									<td>{if $row.content_id && $row.folder_file}<button type="submit" class="btn btn-default btn-xs" name="refresh_map" value="{$row.content_id}" title="{tr}Replace the stored mapfile from its folder{/tr}">{tr}Refresh{/tr}</button>{/if}</td>
