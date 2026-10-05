@@ -164,19 +164,10 @@ file, or every real `Map` object silently reports the *source* site's address."
 
 ### Self-contained map folders (the folder rule)
 
-A map's folder in the maps folder (`Maps/<name>/`) is meant to hold **everything the map needs**,
-so it can be copied to another machine or site and still work:
-
-- `<name>.map` — the mapfile
-- the data it reads, or links *inside* the folder to shared data (for example `coastline.gpkg`
-  linking to a shared water-polygon file) — so the folder declares what it depends on
-- `tiles/reference.png` — the reference (overview) thumbnail; for tile maps `tiles/` is also the
-  render cache
-- `source/` — the original download, where there is one
-
-The mapfile refers to all of this **relative to its own folder**: `SHAPEPATH "."` or `"data"`,
-`CONNECTION "file.gpkg"`, `REFERENCE` … `IMAGE "tiles/reference.png"`. Package assets (symbols,
-templates, fonts) keep their `../` paths, rewritten to the package as above.
+A map's folder in the maps folder (`Maps/<name>/`) holds everything the map needs, so it can be
+copied to another machine or site and still work: the mapfile, its data, `tiles/reference.png`, and
+paths in the mapfile relative to the folder. How to author one, including the legend requirements,
+is in `MAP-DESIGN.md`.
 
 **How it is resolved.** Loading a map from the folder — the load page, or *Refresh* — records the
 folder in the `FOLDER` record, makes sure the site has `storage/mapper/<folder>` (a link to
