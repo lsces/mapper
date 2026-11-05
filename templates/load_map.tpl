@@ -37,7 +37,7 @@
 		</p>
 
 		{if $candidates}
-			<form action="{$smarty.const.MAPPER_PKG_URL}load_map.php" method="post">
+			{form action="{$smarty.const.MAPPER_PKG_URL}load_map.php"}
 				<table class="table table-condensed">
 					<thead>
 						<tr><th></th><th>{tr}Map{/tr}</th><th>{tr}File{/tr}</th><th>{tr}Description{/tr}</th></tr>
@@ -54,7 +54,7 @@
 					</tbody>
 				</table>
 				<button type="submit" class="btn btn-primary">{tr}Import ticked maps{/tr}</button>
-			</form>
+			{/form}
 		{else}
 			<p>{tr}Nothing outstanding - every map in that folder has been imported.{/tr}</p>
 		{/if}

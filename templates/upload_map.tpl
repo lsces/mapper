@@ -17,7 +17,7 @@
 			</div>
 		{/if}
 
-		<form action="{$smarty.const.MAPPER_PKG_URL}upload_map.php" method="post" enctype="multipart/form-data" class="form-horizontal">
+		{form action="{$smarty.const.MAPPER_PKG_URL}upload_map.php" enctype="multipart/form-data" class="form-horizontal"}
 			<div class="form-group">
 				<label class="control-label col-sm-2" for="map_file">{tr}Map file{/tr}</label>
 				<div class="col-sm-6">
@@ -50,6 +50,6 @@
 					<button type="submit" class="btn btn-primary">{tr}Upload{/tr}</button>
 				</div>
 			</div>
-		</form>
+		{/form}
 	</div>
 </div>

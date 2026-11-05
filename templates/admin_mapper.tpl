@@ -58,14 +58,14 @@
 			{else}
 				<p>{tr}Maps in{/tr} <code>{$mapperSettings.maps_dir|escape}</code> {tr}and the maps already loaded here.{/tr}
 					<a class="btn btn-default btn-sm" href="{$smarty.const.MAPPER_PKG_URL}load_map.php">{tr}Load maps from folder{/tr}</a>
-					<form method="post" action="{$smarty.server.SCRIPT_NAME}" style="display:inline">
+					{form style="display:inline"}
 						<input type="hidden" name="page" value="{$page}" />
 						<button type="submit" class="btn btn-default btn-sm" name="refresh_all" value="1" onclick="return confirm('{tr}Replace the stored mapfile of every loaded map from its folder? Layers are re-read, so per-layer queryable flags are reset.{/tr}');">{tr}Refresh all from folder{/tr}</button>
-					</form></p>
+					{/form}</p>
 			{/if}
 
 			{if $archiveRows}
-				<form method="post" action="{$smarty.server.SCRIPT_NAME}">
+				{form}
 					<input type="hidden" name="page" value="{$page}" />
 					<table class="table table-condensed">
 						<thead>
@@ -109,7 +109,7 @@
 							{/foreach}
 						</tbody>
 					</table>
-				</form>
+				{/form}
 				<p class="help-block">{tr}Description is whether the loaded record has one. Folder comment is whether the .map file carries a DESCRIPTION comment that a fresh load would use. Reference image is checked on the copy the viewer actually uses, so Missing means that map will fail to draw here. Folder rule is whether the folder's mapfile is self-contained: a reference image at tiles/reference.png, and SHAPEPATH and CONNECTION relative to the folder (hover for what needs fixing). Refresh replaces a loaded map's stored mapfile from its folder, keeping the record and description; the layers are re-read, so their queryable flags are reset.{/tr}</p>
 			{else}
 				<p>{tr}No maps found.{/tr}</p>
